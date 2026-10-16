@@ -153,7 +153,7 @@ def x_fallback_diag():
     out = []
     for label, url in cands:
         rec = {"channel": label}
-        for attempt in range(1, 4):
+        for attempt in range(1, 3):
             t0 = time.time()
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": server.UA,
@@ -169,7 +169,7 @@ def x_fallback_diag():
                     body = ""
             except Exception as e:
                 rec["attempt%d" % attempt] = "ERR %s: %s" % (type(e).__name__, str(e)[:90])
-                time.sleep(3 * attempt)
+                time.sleep(min(3 * attempt, 5))
                 continue
             rec["attempt%d" % attempt] = {"status": code, "bytes": len(body), "secs": round(time.time() - t0, 1),
                                           "full_text": body.count("full_text"),
@@ -177,7 +177,7 @@ def x_fallback_diag():
             if code == 200 and "full_text" in body:
                 rec["OK_AT_ATTEMPT"] = attempt
                 break
-            time.sleep(3 * attempt)
+            time.sleep(min(3 * attempt, 5))
         out.append(rec)
     return out
 
@@ -238,7 +238,7 @@ def digest(r):
 
 rep = {
     "when_utc": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
-    "probe_version": 4,
+    "probe_version": 41,
     "runner": os.environ.get("RUNNER_NAME") or "(unknown)",
     "python": sys.version.split()[0],
     "egress": egress(),

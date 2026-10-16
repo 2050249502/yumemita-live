@@ -44,4 +44,8 @@ jobs:
           git config user.email "2050249502@users.noreply.github.com"
           git add -f _probe_report.json 2>/dev/null || true
           git commit -m "探针报告 $(date -u '+%Y-%m-%d %H:%MZ')" || echo "（无变化，跳过提交）"
-          git push || echo "PUSH_FAILED：多半是仓库没开 Workflow 写权限"
+          # ★ 本机定时任务每 5 分钟也在推数据，直接 push 会被非快进拒绝 ⇒ 先 rebase 再推，失败重试
+          for i in 1 2 3 4 5; do
+            if git pull --rebase --autostash -q && git push -q; then echo "推送成功（第 $i 次）"; break; fi
+            echo "第 $i 次推送失败，5s 后重试"; sleep 5
+          done
