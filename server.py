@@ -377,29 +377,95 @@ def jst_to_cst(hh, mm):
 
 
 def _x_page():
-    """取官方 X 的时间线页面（内含推文 JSON 的 HTML）。
+    """取官方 X 的时间线（返回 (kind, content)，kind ∈ {"html","md"}）。
 
-    ★ 2026-10-17 实测：**机房 IP**（GitHub Actions runner）请求 x.com 一律 403
-      （正文含 "Enable JavaScript"），三种 UA 全一样 ⇒ 云端必须走备用通道。
+    ★ 2026-10-17 实测（GitHub Actions runner = 微软机房 IP，出口 20.55.95.27）：
+        ① x.com 首屏      → 一律 403「Enable JavaScript」（三种 UA 都一样）
+        ② syndication 时间线 → 429（机房 IP 被限流）
+        ③ r.jina.ai 读 x.com → **200，markdown 正文里带配信表** ⇒ 云端唯一走得通的路
+      本机（经代理）仍是 ① 最优先：字段最全、最快。
 
-    备用通道 = syndication 时间线（免登录，HTML 的 __NEXT_DATA__ 里内嵌推文 JSON）：
-      实测首次请求常 429，重试即 200 / 612KB；正文里 "full_text" 出现 105 次。
-
-    顺序：先 x.com 首屏（本机经代理可用、字段最新），拿不到再退备用通道。
-    自测用：环境变量 YUMEMITA_X_SOURCE=syndication 可强制走备用通道。
+    自测：YUMEMITA_X_SOURCE = x|syndication|jina  可强制指定通道。
     """
-    if os.environ.get("YUMEMITA_X_SOURCE") != "syndication":
+    want = os.environ.get("YUMEMITA_X_SOURCE", "")
+    if want in ("", "x"):
         ok, html, _f = fetch("https://x.com/%s" % X_USER, timeout=25)
         if ok and "full_text" in (html or ""):
-            return html
-    for attempt in range(3):
-        ok2, html2, _f2 = fetch(
-            "https://syndication.twitter.com/srv/timeline-profile/screen-name/%s" % X_USER, timeout=25)
-        if ok2 and "full_text" in (html2 or ""):
-            return html2
-        time.sleep(2 + attempt * 2)
+            return ("html", html)
+        if want == "x":
+            return None
+    if want in ("", "syndication"):
+        for attempt in range(3):
+            ok2, html2, _f2 = fetch(
+                "https://syndication.twitter.com/srv/timeline-profile/screen-name/%s" % X_USER, timeout=25)
+            if ok2 and "full_text" in (html2 or ""):
+                return ("html", html2)
+            time.sleep(2 + attempt * 2)
+        if want == "syndication":
+            return None
+    # ③ r.jina.ai（第三方阅读器，从它自己的服务器取 x.com，绕开机房 IP 被挡）
+    for attempt in range(2):
+        ok3, md, _f3 = fetch("https://r.jina.ai/https://x.com/%s" % X_USER, timeout=40)
+        if ok3 and "配信スケジュール" in (md or ""):
+            return ("md", md)
+        time.sleep(3 * (attempt + 1))
     return None
 
+
+def _x_from_md(md):
+    """从 r.jina.ai 的 markdown 里抠配信表（云端唯一可用通道）。
+
+    markdown 形态（一条推文一行）：
+        *   [@BDP_yumemita](…) [10h](https://x.com/BDP_yumemita/status/<ID>)  ／ 🛸#ゆめみた
+            10/16(金)の配信スケジュール🌟 ＼ 【メン限】22:00～ 仲町あられ [youtube…](…) …
+
+    两点与 HTML 通道不同，其余规则（JST→北京、中文译名、メン限、明日+1）完全沿用：
+      · 推文时间靠**推文 ID 反解**（雪花算法：ms = (id >> 22) + 1288834974657）
+      · 正文里的 markdown 链接要先剥掉，否则成员名会被 URL 污染
+    """
+    out = []
+    for m in re.finditer(r"https://x\.com/[^/\s]+/status/(\d+)\)\s+([^\n]{0,3000})", md):
+        tid, body = int(m.group(1)), m.group(2)
+        if "配信スケジュール" not in body:
+            continue
+        txt = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", body)          # 图片
+        txt = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", txt)        # 链接 → 文字
+        txt = re.sub(r"\s*https?://\S+", " ", txt)                   # 残留裸 URL
+        dm = (re.search(r"(\d{1,2})/(\d{1,2})[^\d]{0,4}\((.)\)[^\d]{0,4}の配信スケジュール", txt)
+              or re.search(r"(\d{1,2})/(\d{1,2})[^\d]{0,4}の配信スケジュール", txt))
+        date_cn = ""
+        if dm:
+            if dm.lastindex and dm.lastindex >= 3:
+                date_cn = "%s月%s日(%s)" % (dm.group(1), dm.group(2), WEEK_CN.get(dm.group(3), dm.group(3)))
+            else:
+                date_cn = "%s月%s日" % (dm.group(1), dm.group(2))
+        slots = []
+        for sm in re.finditer(r"([^\d\n]{0,12}?)(\d{1,2}):(\d{2})\s*[～~]\s*([^\s\[\]（）()]+)", txt):
+            pre, jh, jm = sm.group(1), int(sm.group(2)), int(sm.group(3))
+            name_jp = sm.group(4).strip()
+            if not name_jp:
+                continue
+            ch, cm2, off = jst_to_cst(jh, jm)
+            if re.search(r"明日|翌日", pre):
+                off += 1
+            slots.append({
+                "time": "%02d:%02d" % (ch, cm2),
+                "time_jst": "%02d:%02d" % (jh, jm),
+                "day_offset": off,
+                "member_only": bool(re.search(r"メン限|メンバー限定", pre + name_jp)),
+                "name": JP2CN.get(name_jp, name_jp),
+                "name_jp": name_jp,
+            })
+        out.append({
+            "date": ("%s/%s" % (dm.group(1), dm.group(2))) if dm else "",
+            "date_cn": date_cn,
+            "ts": ((tid >> 22) + 1288834974657) // 1000,
+            "slots": slots,
+            "note_cn": "※时间可能未经预告变更，请以官方为准",
+            "text": txt.strip()[:700],
+        })
+    out.sort(key=lambda x: -x["ts"])
+    return out or None
 
 
 def x_schedule(limit=3):
@@ -408,9 +474,12 @@ def x_schedule(limit=3):
     ★ 推文里的时间是**日本时间(JST, UTC+9)**；本函数统一换算成**北京时间(UTC+8, -1h)**，
       并把成员名译成中文（原名一并保留，因为译名非官方）。
     """
-    html = _x_page()
-    if not html:
+    got = _x_page()
+    if not got:
         return None
+    _kind, html = got
+    if _kind == "md":                     # 走 r.jina.ai 的 markdown 通道（云端）
+        return _x_from_md(html)
     # 推文正文的三种形态都收（优先级从上到下）：
     #   ① x.com 新形态：首屏 JSON 被再转义一层 ⇒  \"full_text\":\"…\"
     #   ② syndication 时间线：__NEXT_DATA__ 里的**裸 JSON** ⇒  "full_text":"…"

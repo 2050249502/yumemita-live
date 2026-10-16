@@ -182,9 +182,9 @@ def x_fallback_diag():
     return out
 
 
-def x_forced_syndication():
-    """强制走备用通道跑一次真实的 x_schedule()，看能否拿到配信表。"""
-    os.environ["YUMEMITA_X_SOURCE"] = "syndication"
+def x_forced_jina():
+    """强制走 r.jina.ai 通道跑一次真实的 x_schedule()，看能否拿到配信表。"""
+    os.environ["YUMEMITA_X_SOURCE"] = "jina"
     t0 = time.time()
     try:
         d = server.x_schedule(3)
@@ -287,7 +287,7 @@ for name, fn in CHECKS:
 
 rep["x_raw"] = x_raw_diag()
 rep["x_fallback"] = x_fallback_diag()
-rep["x_forced"] = x_forced_syndication()
+rep["x_forced"] = x_forced_jina()
 print("[probe] 备用通道:", json.dumps(rep["x_fallback"], ensure_ascii=False)[:600], flush=True)
 print("[probe] 强制备用通道跑 x_schedule:", json.dumps(rep["x_forced"], ensure_ascii=False)[:400], flush=True)
 print("[probe] X 原始诊断:", json.dumps(rep["x_raw"], ensure_ascii=False)[:300], flush=True)
