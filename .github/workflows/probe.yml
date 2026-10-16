@@ -1,0 +1,47 @@
+name: 抓取探针
+
+# 目的：验证 GitHub runner（机房 IP）能否抓到 YouTube / X / B站 ——
+#   本机靠机场节点能抓到，不代表机房 IP 也能（平台对机房 IP 常更严：验证码 / 429 / 风控）。
+# 跑完把 _probe_report.json 提交回仓库：Actions 日志匿名读不到（403），报告文件才是可读凭据。
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "_probe.py"
+      - ".github/workflows/probe.yml"
+      - "server.py"
+      - "build_data.py"
+      - "bt_ups.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 跑探针（四个数据源）
+        run: python _probe.py
+
+      - name: 提交报告（失败也提交）
+        if: always()
+        run: |
+          git config user.name "yumemita-bot"
+          git config user.email "2050249502@users.noreply.github.com"
+          git add -f _probe_report.json 2>/dev/null || true
+          git commit -m "探针报告 $(date -u '+%Y-%m-%d %H:%MZ')" || echo "（无变化，跳过提交）"
+          git push || echo "PUSH_FAILED：多半是仓库没开 Workflow 写权限"
