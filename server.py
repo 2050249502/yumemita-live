@@ -376,20 +376,49 @@ def jst_to_cst(hh, mm):
     return t // 60, t % 60, off
 
 
+def _x_page():
+    """取官方 X 的时间线页面（内含推文 JSON 的 HTML）。
+
+    ★ 2026-10-17 实测：**机房 IP**（GitHub Actions runner）请求 x.com 一律 403
+      （正文含 "Enable JavaScript"），三种 UA 全一样 ⇒ 云端必须走备用通道。
+
+    备用通道 = syndication 时间线（免登录，HTML 的 __NEXT_DATA__ 里内嵌推文 JSON）：
+      实测首次请求常 429，重试即 200 / 612KB；正文里 "full_text" 出现 105 次。
+
+    顺序：先 x.com 首屏（本机经代理可用、字段最新），拿不到再退备用通道。
+    自测用：环境变量 YUMEMITA_X_SOURCE=syndication 可强制走备用通道。
+    """
+    if os.environ.get("YUMEMITA_X_SOURCE") != "syndication":
+        ok, html, _f = fetch("https://x.com/%s" % X_USER, timeout=25)
+        if ok and "full_text" in (html or ""):
+            return html
+    for attempt in range(3):
+        ok2, html2, _f2 = fetch(
+            "https://syndication.twitter.com/srv/timeline-profile/screen-name/%s" % X_USER, timeout=25)
+        if ok2 and "full_text" in (html2 or ""):
+            return html2
+        time.sleep(2 + attempt * 2)
+    return None
+
+
+
 def x_schedule(limit=3):
     """从官方 X 首屏抠「N/M(曜)の配信スケジュール」推文。
 
     ★ 推文里的时间是**日本时间(JST, UTC+9)**；本函数统一换算成**北京时间(UTC+8, -1h)**，
       并把成员名译成中文（原名一并保留，因为译名非官方）。
     """
-    ok, html, _f = fetch("https://x.com/%s" % X_USER, timeout=25)
-    if not ok:
+    html = _x_page()
+    if not html:
         return None
-    # ★ 2026-10-16 X 改版：首屏里推文 JSON 被「再转义一层」——
-    #   键名与引号写成  \"full_text\":\"…\" ，值里的换行写成 \\n（双反斜杠）。
-    #   旧正则 `full_text:"…"` 实测命中 0 条 ⇒ /api/schedule 返回空表、页面「今日直播安排」整块空掉。
-    #   两种形态都收：先试新形态，没有就退回旧形态。
+    # 推文正文的三种形态都收（优先级从上到下）：
+    #   ① x.com 新形态：首屏 JSON 被再转义一层 ⇒  \"full_text\":\"…\"
+    #   ② syndication 时间线：__NEXT_DATA__ 里的**裸 JSON** ⇒  "full_text":"…"
+    #      （机房 IP 走这条路，见 _x_page()）
+    #   ③ x.com 旧形态： full_text:"…"
     _mms = list(re.finditer(r'\\"full_text\\":\\"(.*?)\\",\\"hashtag_entities\\"', html, re.S))
+    if not _mms:
+        _mms = list(re.finditer(r'"full_text":"((?:[^"\\]|\\.)*)"', html))
     if not _mms:
         _mms = list(re.finditer(r'full_text:"((?:[^"\\]|\\.)*)"', html))
     out = []
