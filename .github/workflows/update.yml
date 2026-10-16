@@ -10,6 +10,12 @@ name: 定时抓取并更新站点
 
 on:
   workflow_dispatch:
+  # ★ 手机也能刷新：在仓库里**新建一个 issue**（标题或正文含 /refresh）或在任意 issue 下评论 /refresh。
+  #   为什么需要它：实测新仓库的 schedule 数小时都不触发（GitHub 侧调度问题），而这条路径即时生效、不需要任何 token。
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
   push:
     paths:
       - ".github/workflows/update.yml"
@@ -28,6 +34,13 @@ concurrency:
 
 jobs:
   update:
+    # 定时/手动/推送都跑；issue 路径必须「仓库主本人发起」且正文或评论含 /refresh
+    if: |
+      github.event_name != 'issues' && github.event_name != 'issue_comment'
+      || (github.event_name == 'issues' && github.event.issue.user.login == github.repository_owner
+          && contains(github.event.issue.title || '', '/refresh') || contains(github.event.issue.body || '', '/refresh'))
+      || (github.event_name == 'issue_comment' && github.event.comment.user.login == github.repository_owner
+          && contains(github.event.comment.body || '', '/refresh'))
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
