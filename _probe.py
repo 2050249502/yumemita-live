@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""抓取探针（跑在 GitHub runner 上，2026-10-17）
+"""抓取探针 v2（跑在 GitHub runner 上，2026-10-17）
 
 问题：本机靠机场节点能抓到 YouTube / X / B站，但 GitHub 的 runner 是**机房 IP**，
-      平台对机房 IP 往往更严（验证码 / 429 / 风控）。这个脚本就是来问这个问题的。
+      平台对机房 IP 往往更严（验证码 / 429 / 风控）。
 
-做法：直接调用抓取模块的四个入口，逐块记耗时、条数、**首条真数据样本**，
-      写成 _probe_report.json；再由 workflow 提交回仓库 ——
-      Actions 日志匿名读不到（403），报告文件才是可读的凭据。
+v1 教训：`get_x_schedule` 抓失败时返回 **None**，v1 把它记成 ok=True / n=0 ⇒ 假阳性。
+        v2 把「返回 None」判为失败，并对 X 追加**原始诊断**（各 UA 下的状态码 / 正文大小 /
+        特征词），这样「被挡」和「当天真没发配信表」能区分开。
+
+报告写进 _probe_report.json，由 workflow 提交回仓库 —— Actions 日志匿名读不到（403）。
 """
 import json
 import os
 import sys
 import time
 import traceback
+import urllib.error
 import urllib.request
 
 for _s in (sys.stdout, sys.stderr):
@@ -27,7 +30,6 @@ import server  # noqa: E402
 
 
 def egress():
-    """本 runner 的出口 IP / 地区（证明它在不在墙内、在哪）。"""
     out = {}
     for url in ("https://ipinfo.io/json", "https://api.ipify.org?format=json"):
         try:
@@ -42,8 +44,55 @@ def egress():
     return out
 
 
+def x_raw_diag():
+    """对 X 直接发几种 UA 的裸请求，看机房 IP 到底被怎么对待。"""
+    uas = [
+        ("server.UA", server.UA),
+        ("Safari/mac", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+                       "(KHTML, like Gecko) Version/17.4 Safari/605.1.15"),
+        ("curl", "curl/8.4.0"),
+    ]
+    out = []
+    for label, ua in uas:
+        t0 = time.time()
+        rec = {"ua": label}
+        try:
+            req = urllib.request.Request("https://x.com/%s" % server.X_USER,
+                                         headers={"User-Agent": ua, "Accept-Language": "ja,en;q=0.8"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                body = r.read().decode("utf-8", "replace")
+                rec["status"] = r.status
+        except urllib.error.HTTPError as e:
+            rec["status"] = e.code
+            try:
+                body = (e.read() or b"").decode("utf-8", "replace")
+            except Exception:
+                body = ""
+        except Exception as e:
+            rec["error"] = "%s: %s" % (type(e).__name__, str(e)[:140])
+            rec["secs"] = round(time.time() - t0, 1)
+            out.append(rec)
+            continue
+        rec["bytes"] = len(body)
+        rec["secs"] = round(time.time() - t0, 1)
+        rec["marks"] = {m: True for m in ("full_text", "login", "Rate limit", "Something went wrong",
+                                          "consent", "Enable JavaScript", "suspended", "配信スケジュール")
+                        if m in body}
+        out.append(rec)
+    # 再走一遍项目自己的 fetch（同一段代码路径）
+    try:
+        ok, body, _ = server.fetch("https://x.com/%s" % server.X_USER, timeout=25)
+        out.append({"ua": "server.fetch", "ok": ok, "bytes": len(body or ""),
+                    "has_full_text": "full_text" in (body or "")})
+    except Exception as e:
+        out.append({"ua": "server.fetch", "error": "%s: %s" % (type(e).__name__, str(e)[:120])})
+    return out
+
+
 def digest(r):
-    """把任意返回值压成 (条数, 样本, 首条键, 附加统计) —— 四个入口返回的都是 list。"""
+    """把返回值压成 (条数, 样本, 首条键, 附加)。返回 None ⇒ 判失败（v1 的教训）。"""
+    if r is None:
+        return 0, None, "NoneType", {}
     if isinstance(r, list):
         items = r
     elif isinstance(r, dict):
@@ -80,10 +129,12 @@ def digest(r):
 
 rep = {
     "when_utc": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()),
+    "probe_version": 2,
     "runner": os.environ.get("RUNNER_NAME") or "(unknown)",
     "python": sys.version.split()[0],
     "egress": egress(),
     "blocks": {},
+    "x_raw": [],
     "all_ok": True,
 }
 
@@ -99,13 +150,19 @@ for name, fn in CHECKS:
     rec = {}
     try:
         r = fn(True)
-        rec["ok"] = True
-        rec["secs"] = round(time.time() - t0, 1)
         n, sample, keys, extra = digest(r)
+        rec["ok"] = r is not None            # ★ v2：None 判失败
+        rec["secs"] = round(time.time() - t0, 1)
+        rec["returned_none"] = r is None
         rec["n"] = n
         rec["first_keys"] = keys
         rec["sample"] = sample
         rec.update(extra)
+        if r is None:
+            rec["error"] = "抓取函数返回 None（fetch 失败或解析不到）"
+            rep["all_ok"] = False
+        elif n == 0:
+            rec["warn"] = "返回空列表（可能是当天确实没内容，也可能是页面被挡/改版）"
     except Exception as e:
         rec["ok"] = False
         rec["secs"] = round(time.time() - t0, 1)
@@ -116,10 +173,15 @@ for name, fn in CHECKS:
     print("[probe] %-40s ok=%s %ss n=%s %s" % (name, rec["ok"], rec.get("secs"), rec.get("n"),
                                                rec.get("error") or (rec.get("sample") or "")[:40]), flush=True)
 
-rep["report_readme"] = ("这是探针报告：all_ok=true 表示 GitHub runner 这一侧四个数据源全部抓到真数据；"
-                        "false 则看 blocks.<块>.error / trace_tail。")
+# X 专项诊断（只在 X 那块不健康时才值得看，但一起记下来更省事）
+if not rep["blocks"].get("x_schedule（官方 X 配信表）", {}).get("ok") or \
+   rep["blocks"].get("x_schedule（官方 X 配信表）", {}).get("n") == 0:
+    rep["x_raw"] = x_raw_diag()
+    print("[probe] X 原始诊断:", json.dumps(rep["x_raw"], ensure_ascii=False)[:400], flush=True)
+
+rep["report_readme"] = ("探针报告：all_ok=true = 四个数据源全部抓到真数据（返回 None 或抛异常都算失败）；"
+                        "某块 n=0 且有 warn ⇒ 看 x_raw / first_keys 判断是被挡还是真没内容。")
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "_probe_report.json"), "w", encoding="utf-8") as f:
     json.dump(rep, f, ensure_ascii=False, indent=2)
 print("\n[probe] all_ok =", rep["all_ok"])
-print(json.dumps(rep, ensure_ascii=False)[:1400])
 sys.exit(0 if rep["all_ok"] else 3)
