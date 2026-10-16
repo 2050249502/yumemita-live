@@ -1,0 +1,74 @@
+name: 站点数据刷新（备线）
+
+# 备线：与 update.yml 同功能、不同 cron。★ 2026-10-17 实测：新仓库的 schedule 可能几小时不触发，
+# 多注册一条不同名字/不同分钟的，增加被调度器拾取的机会（两条都跑也无害：有变化才提交 + rebase 重试）。
+# 目的：让站点在**站长电脑关机时也能更新** —— 抓取跑在 GitHub 自己的机器上（海外、免代理）。
+# 写入者只有一个（就是本 workflow）：本机的计划任务已停用，见 README。
+#
+# 已知特性（不是 bug）：
+#   · GitHub 的 cron 会漂移：*/10 实际常落在 10~25 分钟之间，高峰期甚至跳过。
+#   · 每次有变化会 commit 一次；Pages 传统构建有「10 次/小时」软上限，10 分钟一次不会触发。
+#   · 公开仓库的 Actions 分钟数不限量（私有仓库才有 2000 分钟/月 的免费额度）。
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/refresh.yml"
+  schedule:
+    # ★ 避开整点/半点的拥堵（GitHub 官方建议），并注意：**新仓库的 cron 要被调度器识别
+    #   需要 15 分钟到数小时**（社区实测 1h+，本仓库 2026-10-17 首夜实测 2h 未触发）。
+    #   排查口径：API 查 runs?event=schedule 是否出现；只认「真出现 schedule 运行」才算生效。
+    - cron: "13,33,53 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+
+      - name: 装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 抓取并生成 data.json（发布目录 = 仓库根）
+        env:
+          YUMEMITA_SITE_DIR: .
+        run: |
+          python -c "import sys;print('python', sys.version)"
+          python build_data.py
+
+      - name: 体检（全失败就不提交，别把坏数据顶上去）
+        run: |
+          python - <<'PY'
+          import json, sys
+          d = json.load(open("data.json", encoding="utf-8"))
+          errs = d.get("errors") or []
+          n = len(d.get("members") or [])
+          print("成员 %d 人 | 失败块 %s | built %s" % (n, errs or "无", d.get("built")))
+          if n < 6 or len(errs) >= 2:
+              print("::error::本次抓取不健康（成员不足或失败块过多）→ 放弃提交")
+              sys.exit(1)
+          PY
+
+      - name: 提交并推送（有变化才提交）
+        run: |
+          git config user.name "yumemita-bot"
+          git config user.email "2050249502@users.noreply.github.com"
+          git add -f data.json
+          if git diff --cached --quiet; then echo "数据无变化，跳过提交"; exit 0; fi
+          git commit -m "数据更新 $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for i in 1 2 3 4 5; do
+            if git pull --rebase --autostash -q && git push -q; then echo "推送成功（第 $i 次）"; break; fi
+            echo "第 $i 次推送失败，5s 后重试"; sleep 5
+          done
