@@ -1,22 +1,22 @@
 {
-  "when_utc": "2026-10-16 19:48:22",
-  "probe_version": 2,
-  "runner": "GitHub Actions 1000000043",
+  "when_utc": "2026-10-16 19:56:43",
+  "probe_version": 41,
+  "runner": "GitHub Actions 1000000057",
   "python": "3.11.17",
   "egress": {
     "https://ipinfo.io/json": {
-      "ip": "68.154.54.100",
-      "city": "Boydton",
+      "ip": "20.55.95.27",
+      "city": "Dulles Town Center",
       "region": "Virginia",
       "country": "US",
-      "loc": "36.6676,-78.3875",
+      "loc": "39.0376,-77.4158",
       "org": "AS8075 Microsoft Corporation",
-      "postal": "23917",
+      "postal": "20164",
       "timezone": "America/New_York",
       "readme": "https://ipinfo.io/missingauth"
     },
     "https://api.ipify.org?format=json": {
-      "ip": "68.154.54.100"
+      "ip": "20.55.95.27"
     }
   },
   "blocks": {
@@ -44,7 +44,7 @@
     },
     "x_schedule（官方 X 配信表）": {
       "ok": false,
-      "secs": 0.1,
+      "secs": 12.3,
       "returned_none": true,
       "n": 0,
       "first_keys": "NoneType",
@@ -53,7 +53,7 @@
     },
     "upcoming（YouTube 待機所）": {
       "ok": true,
-      "secs": 2.3,
+      "secs": 2.5,
       "returned_none": false,
       "n": 5,
       "first_keys": [
@@ -72,7 +72,7 @@
     },
     "bilibili（B站 搬运，含白名单过滤）": {
       "ok": true,
-      "secs": 10.9,
+      "secs": 10.4,
       "returned_none": false,
       "n": 57,
       "first_keys": [
@@ -96,7 +96,7 @@
       "ua": "server.UA",
       "status": 403,
       "bytes": 5617,
-      "secs": 0.1,
+      "secs": 0.0,
       "marks": {
         "Enable JavaScript": true
       }
@@ -105,7 +105,7 @@
       "ua": "Safari/mac",
       "status": 403,
       "bytes": 5659,
-      "secs": 0.1,
+      "secs": 0.0,
       "marks": {
         "Enable JavaScript": true
       }
@@ -126,6 +126,111 @@
       "has_full_text": false
     }
   ],
+  "x_alt": [
+    {
+      "channel": "fxtwitter（JSON API）",
+      "url": "https://api.fxtwitter.com/BDP_yumemita",
+      "status": 200,
+      "bytes": 1311,
+      "secs": 0.3,
+      "has_schedule_word": false,
+      "has_full_text": false,
+      "has_tweet_json": true
+    },
+    {
+      "channel": "vxtwitter（JSON API）",
+      "url": "https://api.vxtwitter.com/BDP_yumemita",
+      "status": 403,
+      "bytes": 5654,
+      "secs": 0.1,
+      "has_schedule_word": false,
+      "has_full_text": false,
+      "has_tweet_json": false
+    },
+    {
+      "channel": "syndication 时间线（HTML 内嵌 JSON）",
+      "url": "https://syndication.twitter.com/srv/timeline-profile/screen-name/BDP_y",
+      "status": 429,
+      "bytes": 20,
+      "secs": 0.1,
+      "has_schedule_word": false,
+      "has_full_text": false,
+      "has_tweet_json": false
+    },
+    {
+      "channel": "publish.twitter.com oEmbed",
+      "url": "https://publish.twitter.com/oembed?url=https://twitter.com/BDP_yumemit",
+      "status": 200,
+      "bytes": 441,
+      "secs": 0.3,
+      "has_schedule_word": false,
+      "has_full_text": false,
+      "has_tweet_json": false
+    }
+  ],
+  "x_fallback": [
+    {
+      "channel": "syndication 时间线",
+      "attempt1": {
+        "status": 429,
+        "bytes": 20,
+        "secs": 0.1,
+        "full_text": 0,
+        "配信スケジュール": 0
+      },
+      "attempt2": {
+        "status": 429,
+        "bytes": 20,
+        "secs": 0.1,
+        "full_text": 0,
+        "配信スケジュール": 0
+      }
+    },
+    {
+      "channel": "r.jina.ai 读 x.com",
+      "attempt1": {
+        "status": 200,
+        "bytes": 8421,
+        "secs": 0.3,
+        "full_text": 0,
+        "配信スケジュール": 1
+      },
+      "attempt2": {
+        "status": 200,
+        "bytes": 8421,
+        "secs": 0.2,
+        "full_text": 0,
+        "配信スケジュール": 1
+      }
+    },
+    {
+      "channel": "r.jina.ai 读 syndication",
+      "attempt1": "ERR TimeoutError: The read operation timed out",
+      "attempt2": "ERR TimeoutError: The read operation timed out"
+    },
+    {
+      "channel": "fxtwitter 最新推文",
+      "attempt1": {
+        "status": 200,
+        "bytes": 982,
+        "secs": 0.2,
+        "full_text": 0,
+        "配信スケジュール": 0
+      },
+      "attempt2": {
+        "status": 200,
+        "bytes": 982,
+        "secs": 0.1,
+        "full_text": 0,
+        "配信スケジュール": 0
+      }
+    }
+  ],
+  "x_forced": {
+    "ok": false,
+    "secs": 12.2,
+    "reason": "返回 None/空（抓不到）"
+  },
   "all_ok": false,
   "report_readme": "探针报告：all_ok=true = 四个数据源全部抓到真数据（返回 None 或抛异常都算失败）；某块 n=0 且有 warn ⇒ 看 x_raw / first_keys 判断是被挡还是真没内容。"
 }
