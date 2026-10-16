@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>梦限大 · 五人直播间</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{--bg:#0d0f14;--card:#151922;--card2:#1b2130;--line:#2a3140;--fg:#e8ecf3;--dim:#8b95a7;
+        --pink:#ff7788;--blue:#2288dd;--live:#ff3b57;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Microsoft YaHei","Yu Gothic UI",system-ui,sans-serif;}
+  header{padding:18px 22px 6px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  header h1{font-size:20px;margin:0;letter-spacing:.5px}
+  header .sub{color:var(--dim);font-size:12.5px}
+  header .t{color:var(--dim);font-size:12.5px;margin-left:auto}
+  .wrap{padding:14px 22px 40px}
+  /* 首页卡片 */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;
+        cursor:pointer;transition:.15s;position:relative;overflow:hidden}
+  .card:hover{border-color:var(--pink);background:var(--card2);transform:translateY(-2px)}
+  .card .role{font-size:11.5px;color:var(--blue);letter-spacing:1px}
+  .card .name{font-size:19px;font-weight:700;margin:6px 0 2px}
+  .card .h{font-size:11.5px;color:var(--dim)}
+  .card .st{margin-top:12px;font-size:12.5px;display:flex;align-items:center;gap:7px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#556;flex:none}
+  .dot.on{background:var(--live);box-shadow:0 0 0 0 rgba(255,59,87,.7);animation:pulse 1.6s infinite}
+  .dot.unk{background:#d9a300}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,59,87,.6)}70%{box-shadow:0 0 0 9px rgba(255,59,87,0)}100%{box-shadow:0 0 0 0 rgba(255,59,87,0)}}
+  .card .tip{margin-top:6px;font-size:11px;color:#d9a300;min-height:14px}
+  .bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;
+       position:sticky;top:0;z-index:20;background:rgba(13,15,20,.93);backdrop-filter:blur(8px);
+       padding:9px 0;border-bottom:1px solid rgba(42,49,64,.7)}
+  #back{font-weight:700}
+  button{background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:9px;
+         padding:8px 14px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--blue)}
+  /* 单间 */
+  #room{display:none}
+  .stage{position:relative;background:#000;border:1px solid var(--line);border-radius:14px;
+         overflow:hidden;aspect-ratio:16/9;max-height:74vh;margin:0 auto}
+  .stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  /* ★ 2026-10-17 主人决定：直播中转拆除 ⇒ 画面一律 YouTube 官方嵌入，不再有 <video>/模式切换 */
+  .notice .lnk{color:var(--pink);text-decoration:underline;cursor:pointer}
+  /* ★ 2026-10-17 静态化：房间 = 画面 + YouTube 官方聊天室 两栏；B站搬运点标题页内弹官方播放器 */
+  .roomwrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start}
+  /* ★ 坑：.stage 原本带 margin:0 auto，在 grid 里 auto 边距会让它变 shrink-to-fit ⇒ 宽度塌成 0（无 in-flow 内容） */
+  .roomwrap > .stage{margin:0;width:100%}
+  @media(max-width:900px){.roomwrap{grid-template-columns:minmax(0,1fr)}}
+  .chatcol{display:flex;flex-direction:column;gap:7px}
+  .chead{font-size:12px;color:var(--dim);line-height:1.6}
+  #chat{width:100%;height:430px;border:1px solid var(--line);border-radius:12px;background:#0f1218}
+  @media(max-width:900px){#chat{height:320px}}
+  .cnote{font-size:12px;color:var(--dim)}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.84);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
+  .overlay.show{display:flex}
+  .oBox{width:min(1100px,96vw);background:#0f1218;border:1px solid var(--line);border-radius:14px;padding:11px}
+  .oTop{display:flex;gap:10px;align-items:center;margin-bottom:9px}
+  .oTop .t{flex:1;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .oFrame{position:relative;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+  .oFrame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  #dmLayer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:5}
+  .dm{position:absolute;white-space:nowrap;font-size:21px;font-weight:700;color:#fff;
+      text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.9);will-change:transform;
+      animation:slide linear forwards}
+  @keyframes slide{from{transform:translateX(var(--w))}to{transform:translateX(calc(-100% - 40px))}}
+  .notice{position:absolute;left:0;right:0;top:0;z-index:6;padding:9px 14px;font-size:13px;
+          background:rgba(0,0,0,.72);display:none}
+  .notice a{color:var(--pink)}
+  .composer{display:flex;gap:9px;margin-top:12px}
+  .composer input{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;
+                  color:var(--fg);padding:11px 13px;font-size:14px;outline:none}
+  .composer input:focus{border-color:var(--pink)}
+  .meta{color:var(--dim);font-size:12px;margin-top:8px}
+  /* ★ 昵称 + 弹幕记录（2026-10-14 加） */
+  .composer input#nickInput{flex:0 0 118px;text-align:center;font-size:13px}
+  .nickwrap{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .nickwrap span{font-size:12px;color:var(--dim)}
+  .hist{margin-top:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .htitle{font-size:12.5px;font-weight:700;color:var(--fg);margin-bottom:8px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .htitle .hint{font-weight:400;color:var(--dim);font-size:11px}
+  .hlist{max-height:200px;overflow-y:auto;font-size:12.5px;line-height:1.7}
+  .hrow{display:flex;gap:8px;align-items:baseline;padding:3px 5px;border-radius:6px}
+  .hrow:nth-child(odd){background:#1c2130}
+  .hnick{flex:0 0 92px;color:#8fe08f;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .htext{flex:1;color:#cfd6e2;word-break:break-all}
+  .hempty{color:var(--dim);padding:4px 5px}
+  .foot{color:var(--dim);font-size:11.5px;margin-top:26px;line-height:1.7}
+  .foot code{background:#232a38;padding:1px 5px;border-radius:5px;font-size:11px}
+  /* ★ 卡片底下的面板：公告 / 开播时间 */
+  .panel{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .ptitle{font-size:13.5px;font-weight:700;color:var(--fg);display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .psrc{font-size:11px;font-weight:400;color:var(--dim)}
+  .pbody{margin-top:10px;font-size:13px;line-height:1.75;color:#cfd6e2;white-space:pre-wrap}
+  .trow{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-top:1px dashed #232a38}
+  .trow:first-child{border-top:0}
+  .tname{flex:0 0 116px;font-weight:700}
+  .trole{flex:0 0 52px;font-size:11.5px;color:var(--blue)}
+  .twhen{flex:0 0 78px;color:#ffd479;font-size:12.5px}
+  .ttext{flex:1;color:var(--dim);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ttext a{color:#9fc7ff;text-decoration:none}
+  .ton{color:var(--live);font-weight:700}
+  /* ★ 配信スケジュール行 */
+  .shead{font-size:13.5px;font-weight:700;color:#ffd479;margin-bottom:8px}
+  .srow{display:flex;gap:12px;align-items:baseline;padding:5px 8px;border-radius:8px}
+  .srow:nth-child(even){background:#1c2130}
+  .stime{flex:0 0 58px;font-weight:700;color:#8fe08f;font-variant-numeric:tabular-nums}
+  .srow.soon{outline:1px solid #3a6a3a}
+  .srow.soon .stime{color:#c6ff8a}
+  .srow.past{opacity:.42}
+  .srow.prevday .stime::after{content:"*";color:#ff9d9d}
+  .srow.nextday .stime::after{content:"次日";font-size:10px;color:#ffd479;margin-left:4px}
+  .sname{flex:1}
+  .ytmini{font-size:11px;color:var(--dim);margin-left:7px;text-decoration:none}
+  .ytmini:hover{color:var(--acc)}
+  .bmini{font-size:11px;color:var(--pink);margin-left:7px;text-decoration:none}
+  .bmini:hover{color:#ffd0e8}
+  .snote{margin-top:9px;font-size:11.5px;color:var(--dim)}
+  /* ★ 2026-10-14 主人：待機所不再单独占一栏 ⇒ 原 .urow/.utime/.utag/.uhead 规则已删
+     待機所只在「今日直播安排」栏当主位回退来源，排版复用 .srow/.stag */
+  /* ★ 官方今日表未发 ⇒ 主位改挂待機所（2026-10-14） */
+  .shead.warn{color:#ffd479}
+  .shead.warn b{color:#ff9d9d}
+  .sdiv{margin:12px 0 4px;padding-top:9px;border-top:1px dashed #232a38;font-size:11.5px;color:var(--dim)}
+  .srow.old{opacity:.5}
+  .srow .stag{font-size:10.5px;color:#ffb3c8;border:1px solid #5a2b39;border-radius:5px;padding:0 4px;margin-left:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>夢限大みゅーたいぷ</h1>
+  <span class="sub">五人直播间 · 本页弹幕仅在本站内可见</span>
+  <span class="t" id="clock"></span>
+</header>
+
+<div class="wrap">
+  <div id="home">
+    <div class="bar"><button id="refresh">刷新直播状态</button>
+      <span class="meta" id="homeMeta"></span></div>
+    <div class="grid" id="grid"></div>
+
+    <!-- ★ 卡片底下：公告 + 开播时间 -->
+    <div class="panel">
+      <div class="ptitle">📢 公告</div>
+      <div class="pbody" id="notice">加载中…</div>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle">📅 今日直播安排 <span class="psrc">优先用官方 X @BDP_yumemita 的配信スケジュール；<b>官方当天表还没发时，主位自动改用各成员 YouTube 的待機所预告</b>｜时间均为<b>北京时间</b></span></div>
+      <div class="pbody" id="sched">加载中…</div>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle">🎬 最新视频 <span class="psrc">每人最近一次上传（视频或直播档）· RSS 优先，RSS 不可用时改抓页面并按 uploadDate 取最新 · 「※」= 本次未取到、显示上次成功结果</span></div>
+      <div class="pbody" id="times">加载中…</div>
+    </div>
+
+    <!-- ★ 2026-10-15：回放/剪辑走 B站（墙内直连，不占本站上行与机场流量） -->
+    <div class="panel">
+      <div class="ptitle">📺 B站搬运 <span class="psrc">视频内容均可直接跳转至 B站原视频，可以去三连支持感谢一下相关 UP 主的搬运</span></div>
+      <div class="pbody" id="bili">加载中…</div>
+    </div>
+
+    <div class="foot">房间里的聊天走 <b>YouTube 官方聊天室</b>（本站自建弹幕已下线，所以聊天内容也不再存在本站）。<br>
+      本站<b>不转发任何视频流</b>（直播画面走 YouTube 官方嵌入，「最新视频」点标题直接去 YouTube）：不占本站流量、秒开，但<b>你自己得能访问 YouTube</b>。<br>
+      「B站搬运」对墙内更友好：B站官方播放器、直连，不花本站流量。<br>
+      公告改 <code>notice.txt</code> 即可（刷新日页面生效，不用重启服务）。</div>
+  </div>
+
+  <div id="room">
+    <div class="bar">
+      <button id="back">← 返回列表</button>
+      <span class="meta">（也可按浏览器返回键 / Esc）</span>
+      <span class="meta" id="roomMeta"></span>
+    </div>
+    <div class="roomwrap">
+      <div class="stage">
+        <!-- ★ 注意：这个 id 不能叫 notice —— 首页「📢 公告」面板已经用了 id="notice"，
+             同页两个同名 id 时 getElementById 只拿到第一个（首页那个），单间提示条会变成 0 高度的隐形元素。
+             2026-10-16 修。 -->
+        <div class="notice" id="stageNotice"></div>
+        <iframe id="player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowfullscreen referrerpolicy="origin"></iframe>
+      </div>
+      <div class="chatcol">
+        <div class="chead">💬 <b>YouTube 官方聊天室</b><br>
+          2026-10-17 起本站自建弹幕下线，直接用官方聊天：只在<b>直播进行中</b>有内容，要发言得登录 YouTube。</div>
+        <iframe id="chat" allow="autoplay; encrypted-media" referrerpolicy="origin"></iframe>
+        <div class="cnote" id="chatNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ B站搬运：点标题在这里弹官方播放器（静态页也能用；原来那条 /bwatch 是后端渲染的，已随中转一起拆掉） -->
+  <div class="overlay" id="ovl">
+    <div class="oBox">
+      <div class="oTop">
+        <span class="t" id="ovlTitle"></span>
+        <a id="ovlOut" class="bmini" target="_blank" rel="noopener">↗B站打开</a>
+        <button id="ovlClose">关闭</button>
+      </div>
+      <div class="oFrame"><iframe id="ovlFrame" allowfullscreen allow="autoplay; fullscreen; encrypted-media" referrerpolicy="origin"></iframe></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let members = [], cur = null, watchTimer = null;
+
+// ★★★ 2026-10-17 静态化：本站**没有后端进程了**，所有数据来自同目录的 data.json
+//     （由本机 build_data.py 定时生成并推送到托管方；页面自己不会去抓 YouTube）
+let DATA = null;
+async function loadData(force){
+  const r = await fetch("data.json?t=" + Date.now(), {cache: "no-store"});   // 才 20 KB 级，永远取最新
+  if(!r.ok) throw new Error("HTTP " + r.status);
+  DATA = await r.json();
+  return DATA;
+}
+// 静态页最要紧的一行字：这份数据是多久以前的
+function agoText(ts){
+  if(!ts) return "数据时间未知";
+  const s = Math.max(0, Math.floor(Date.now()/1000) - ts);
+  if(s < 90) return "数据 " + s + " 秒前";
+  if(s < 3600) return "数据 " + Math.round(s/60) + " 分钟前";
+  if(s < 86400) return "数据 " + Math.round(s/3600) + " 小时前";
+  return "数据 " + Math.round(s/86400) + " 天前（数据没在更新！）";
+}
+// ★ 静态化必炸的冻结值之一：recent.when / upcoming.hours_until 是生成那一刻算的字符串，
+//   快照放久了就会一直显示「37 分钟前」⇒ 一律按原始时间戳在前端现算。
+function humanWhen(iso, fallback){
+  if(!iso) return fallback || "";
+  const t = Date.parse(iso);
+  if(!t) return fallback || "";
+  const s = Math.max(0, Math.floor((Date.now() - t)/1000));
+  if(s < 3600) return Math.max(1, Math.round(s/60)) + " 分钟前";
+  if(s < 86400) return Math.round(s/3600) + " 小时前";
+  if(s < 86400*30) return Math.round(s/86400) + " 天前";
+  return Math.round(s/86400/30) + " 个月前";
+}
+function hoursUntil(startTs, fallback){
+  if(!startTs) return fallback || 0;
+  return (startTs - Math.floor(Date.now()/1000)) / 3600;
+}
+
+// ---------- ★ 直播画面：一律 YouTube 官方嵌入（2026-10-17 主人决定拆除「本站中转」）----------
+// 拆它的理由（别再顺手加回来）：中转按人数成倍吃本机上行 + 机场流量、并发上限 4 路、
+// 公网隧道随时会断，而且「国内观众到底能不能到达那个域名」始终没有真人验证过。
+// 存档：removed/live_relay_20261017.py ; 背景：session_memory/2026-10-16_梦限大直播站_直播中转判活修复.md
+let curVid = "";
+function setNotice(html, show){
+  const n = $("#stageNotice");             // ★ 必须是单间那条（首页公告面板的 id 是 notice）
+  if(!n) return;
+  if(!show){ n.style.display = "none"; n.innerHTML = ""; return; }
+  n.style.display = "block";
+  if(html !== undefined) n.innerHTML = html;
+}
+
+// 挂画面：有正在播的 videoId 就嵌那一场；否则挂频道直播位（YouTube 自己会提示未在直播）
+function mountPlayer(){
+  if(!cur) return;
+  if(cur.live === true && curVid){
+    $("#player").src = `https://www.youtube.com/embed/${curVid}?autoplay=1`;
+    setNotice("", false);
+    return;
+  }
+  $("#player").src = cur.ucid
+    ? `https://www.youtube.com/embed/live_stream?channel=${cur.ucid}&autoplay=1` : "about:blank";
+  if(!cur.ucid){
+    setNotice("拿不到频道 ID（需要代理才能解析），暂时无法嵌入画面。", true);
+  }else{
+    setNotice((cur.live === false ? "当前未开播。" : "拿不到直播状态（可能是代理没开）。") +
+      ` 可去 YouTube 频道页看看：<a href="${cur.url}" target="_blank" rel="noopener">${cur.url}</a>`, true);
+  }
+}
+
+function tick(){
+  const d = new Date();
+  $("#clock").textContent = d.toLocaleTimeString("ja-JP");
+}
+setInterval(tick, 1000); tick();
+
+function renderTimes(){
+  const box = $("#times"); box.innerHTML = "";
+  members.forEach(m => {
+    const r = m.recent || null;
+    const row = document.createElement("div"); row.className = "trow";
+    const nm = document.createElement("div"); nm.className = "tname"; nm.textContent = m.jp;
+    const rl = document.createElement("div"); rl.className = "trole"; rl.textContent = m.role;
+    const wh = document.createElement("div"); wh.className = "twhen";
+    const tx = document.createElement("div"); tx.className = "ttext";
+    if(m.live === true){ wh.innerHTML = '<span class="ton">● 直播中</span>'; }
+    else if(r && (r.when || r.published)){
+      const w = humanWhen(r.published, r.when);   // ★ 按 published 现算，别用快照里冻结的 when
+      wh.textContent = r.stale ? (w + " ※") : w;
+      if(r.stale) wh.title = "本次没取到 YouTube 数据，显示上次成功抓到的记录";
+    }
+    else { wh.textContent = "—"; }
+    if(r && r.title){
+      if(r.url){
+        // ★ 2026-10-17 主人决定：点播中转也拆 ⇒ 标题直接去 YouTube（本站不再转发视频流）
+        const a = document.createElement("a");
+        a.href = r.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = r.title;
+        a.title = "在 YouTube 打开（需要能访问 YouTube）";
+        tx.appendChild(a);
+        const b = document.createElement("span");     // 只是「这条是外链」的视觉提示，目的与标题相同，不做成第二个链接
+        b.className = "ytmini"; b.textContent = "↗YT";
+        tx.appendChild(b);
+      }
+      else { tx.textContent = r.title; }
+    } else { tx.textContent = "（没抓到直播记录）"; }
+    row.append(nm, rl, wh, tx); box.appendChild(row);
+  });
+}
+
+// ★ B站搬运（2026-10-15 主人要）：回放/剪辑走 B站 官方嵌入 —— 墙内直连，
+//   不经过本站中转，所以不吃家里上行、不吃机场流量。
+async function loadBilibili(force){
+  const box = $("#bili");
+  try{
+    const data = await loadData(force);
+    const d = (data && data.bilibili) || {};
+    renderBili((d && d.list) || []);
+    // ★ 主人 2026-10-15 要求把 B站 栏标题后面的说明整段删掉（标题现在只有「📺 B站搬运」）。
+    //   这段守卫留着：以后若把 <span id="biliUpCount"> 加回标题，它会自动生效（元素不存在则什么都不做）。
+    const n = (d && d.ups) ? d.ups.count : 0;
+    const el = $("#biliUpCount");
+    if(el){
+      const errs = (d && d.diag && d.diag.errs) || [];
+      el.textContent = n ? ("当前白名单 " + n + " 个 UP" + (errs.length ? "，但本轮抓取有失败" : ""))
+                         : "未设白名单（按关键词相关性过滤）";
+      el.style.color = errs.length ? "var(--live)" : "";
+    }
+  }catch(e){
+    box.innerHTML = '<div class="hempty">（B站 数据没取到，稍后自动重试）</div>';
+  }
+}
+function renderBili(list){
+  const box = $("#bili"); box.innerHTML = "";
+  if(!list.length){ box.innerHTML = '<div class="hempty">（最近没搜到新的搬运）</div>'; return; }
+  list.forEach(v => {
+    const row = document.createElement("div"); row.className = "trow";
+    const nm = document.createElement("div"); nm.className = "tname"; nm.textContent = v.author || "—";
+    const rl = document.createElement("div"); rl.className = "trole"; rl.textContent = v.dur || "";
+    const wh = document.createElement("div"); wh.className = "twhen"; wh.textContent = v.wh || "";
+    const tx = document.createElement("div"); tx.className = "ttext";
+    const a = document.createElement("a");
+    a.href = v.url || ("https://www.bilibili.com/video/" + v.bvid);
+    a.onclick = (ev) => { ev.preventDefault(); openBili(v.bvid, v.title); };   // 页内弹官方播放器
+    a.target = "_blank"; a.rel = "noopener"; a.textContent = v.title;
+    tx.appendChild(a);
+    const b = document.createElement("a");
+    b.href = v.url; b.target = "_blank"; b.rel = "noopener";
+    b.className = "bmini"; b.textContent = "↗B站"; b.title = "在 B站 打开";
+    tx.appendChild(b);
+    if(v.play != null){
+      const s = document.createElement("span");
+      s.className = "bmini"; s.textContent = "▶" + v.play;
+      tx.appendChild(s);
+    }
+    row.append(nm, rl, wh, tx); box.appendChild(row);
+  });
+}
+
+// ★ 北京时间换算（接口给的 ts 是秒）—— 判定"官方今日表发了没"、"待機所是不是今天的"
+function bjDateStr(ts){ const d = new Date((ts + 8*3600) * 1000);
+  return String(d.getUTCMonth()+1).padStart(2,"0") + "-" + String(d.getUTCDate()).padStart(2,"0"); }
+function bjHM(ts){ const d = new Date((ts + 8*3600) * 1000);
+  return String(d.getUTCHours()).padStart(2,"0") + ":" + String(d.getUTCMinutes()).padStart(2,"0"); }
+
+async function loadSchedule(force){
+  const box = $("#sched");
+  try{
+    const data = await loadData(force);
+    const sj = (data && data.schedule) || {};
+    const up = (data && data.upcoming) || [];        // 待機所是"官方表没发时"的主位来源，取不到就当空
+    const posts = sj.posts || [];
+    const p = posts[0] || null;
+    const todayBJ = bjDateStr(Math.floor(Date.now()/1000));
+    const tableIsToday = !!p && bjDateStr(p.ts) === todayBJ;
+    const todayUp = up.filter(x => !x.placeholder && bjDateStr(x.start_ts) === todayBJ);
+    box.innerHTML = "";
+    if(!posts.length && !todayUp.length){ box.textContent = "（没抓到官方配信表，也没有待機所预告 —— 检查代理）"; return; }
+
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    // 官方表行
+    const mkRow = (s, old) => {
+      const sp = s.time.split(":"); const tmin = (+sp[0]) * 60 + (+sp[1]);
+      const off = s.day_offset || 0;
+      const row = document.createElement("div");
+      // ★ off≠0 的场次不落在"这一天"（-1=北京在前一晚 / +1=次日）⇒ 不参与"已开始/即将开始"判定
+      row.className = "srow" + (off < 0 ? " prevday" : (off > 0 ? " nextday" : "")) +
+        (old ? " old" : (off !== 0 ? "" : (tmin <= nowMin ? " past" : (tmin - nowMin <= 60 ? " soon" : ""))));
+      const t = document.createElement("span"); t.className = "stime"; t.textContent = s.time;
+      const n = document.createElement("span"); n.className = "sname";
+      n.textContent = (s.name_jp && s.name_jp !== s.name) ? (s.name + "（" + s.name_jp + "）") : s.name;
+      // ★【メン限】场次（官方原文里的信息，原来整行被漏掉）
+      if(s.member_only){ const g = document.createElement("span"); g.className = "stag"; g.textContent = "会员限定"; n.appendChild(g); }
+      row.append(t, n); return row;
+    };
+    // 待機所行（用官方表同款排版，主位改挂时用）
+    const mkUpRow = (x) => {
+      const row = document.createElement("div");
+      const hu = hoursUntil(x.start_ts, x.hours_until);      // ★ 静态页里必须现算，别用快照里的 hours_until
+      row.className = "srow" + (hu > 0 && hu <= 3 ? " soon" : "");
+      const t = document.createElement("span"); t.className = "stime";
+      let cd = "";
+      if(hu > 0) cd = hu < 1 ? "（" + Math.round(hu*60) + " 分后）" : "（" + Math.round(hu) + " 小时后）";
+      t.textContent = bjHM(x.start_ts) + cd;
+      const n = document.createElement("span"); n.className = "sname";
+      n.textContent = x.member + "：";
+      const a = document.createElement("a"); a.href = x.url; a.target = "_blank"; a.rel = "noopener";
+      a.style.color = "#9fc7ff"; a.textContent = x.title;
+      n.appendChild(a);
+      if(x.members_only){ const g = document.createElement("span"); g.className = "stag"; g.textContent = "会员限定"; n.appendChild(g); }
+      row.append(t, n); return row;
+    };
+
+    if(!tableIsToday){
+      // ① 官方当天表还没发 ⇒ 主位换成待機所预告
+      const h = document.createElement("div"); h.className = "shead warn";
+      h.innerHTML = "⚠ 官方今日（" + todayBJ + "）的时间表<b>还没发</b> —— 主位先挂各成员 YouTube 待機所预告（比整表更早）";
+      box.appendChild(h);
+      if(todayUp.length){
+        todayUp.forEach(x => box.appendChild(mkUpRow(x)));
+        const n1 = document.createElement("div"); n1.className = "snote";
+        n1.textContent = "来源：各成员 YouTube 已挂出的「配信予定」，开播时间取频道待機所的真值（已换算成北京时间）｜会员限定场需会员才能进";
+        box.appendChild(n1);
+      }else{
+        const n0 = document.createElement("div"); n0.className = "snote";
+        n0.textContent = "今日暂无已挂出的待機所预告（其余成员还没挂）。官方整表通常在下午（北京 15–17 点）发布；也可看下面「📡 待機所预告」栏持续观察。";
+        box.appendChild(n0);
+      }
+      if(p){
+        const d = document.createElement("div"); d.className = "sdiv";
+        d.textContent = "最新一份官方表：" + (p.date_cn || p.date) + "（今日无表，下面仅作参考）";
+        box.appendChild(d);
+        (p.slots || []).forEach(s => box.appendChild(mkRow(s, true)));
+        const nt = document.createElement("div"); nt.className = "snote";
+        nt.textContent = p.note_cn || "※时间可能未经预告变更，请以官方为准";
+        box.appendChild(nt);
+      }
+      return;
+    }
+    // ② 官方当天表已发 ⇒ 正常显示（原逻辑）
+    const head = document.createElement("div"); head.className = "shead";
+    head.textContent = (p.date_cn || p.date || "最新") + " の直播时间表（北京时间）";
+    box.appendChild(head);
+    (p.slots || []).forEach(s => box.appendChild(mkRow(s, false)));
+    // ★ 官方表已发时不再单开一栏；同期若有"官方表没列的场次"，压一行提示，保住"待機所更早"的信息
+    const extra = todayUp.filter(x => !(p.slots || []).some(s => s.name === x.member));
+    if(extra.length){
+      const d = document.createElement("div"); d.className = "sdiv";
+      d.textContent = "📡 同期待機所（官方表未列）：" + extra.map(x =>
+        bjHM(x.start_ts) + " " + x.member + (x.members_only ? "（会员限定）" : "")).join("、");
+      box.appendChild(d);
+    }
+    const nt = document.createElement("div"); nt.className = "snote";
+    nt.textContent = p.note_cn || "※时间可能未经预告变更，请以官方为准";
+    box.appendChild(nt);
+  }catch(e){ box.textContent = "配信表读取失败（服务没起？）"; }
+}
+
+async function loadNotice(){
+  try{
+    const j = await loadData(false);
+    $("#notice").textContent = j.notice || "（暂无公告 —— 编辑 notice.txt 写点什么就有了）";
+  }catch(e){ $("#notice").textContent = "公告读取失败（data.json 还没生成？）"; }
+}
+
+async function loadStatus(force){
+  $("#homeMeta").textContent = "正在读取数据…";
+  try{
+    const j = await loadData(force);
+    members = j.members || [];
+    render();
+    const live = members.filter(m => m.live === true).length;
+    const unk  = members.filter(m => m.live === null).length;
+    $("#homeMeta").textContent = `在播 ${live} 人` + (unk ? ` · 状态未知 ${unk} 人（检查代理）` : "") +
+      " · " + agoText(j.ts);
+  }catch(e){
+    $("#homeMeta").textContent = "data.json 读取失败（文件还没生成 / 还没推上去？）";
+  }
+}
+
+function render(){
+  const g = $("#grid"); g.innerHTML = "";
+  members.forEach(m => {
+    const st = m.live === true ? ["on", "直播中"]
+             : m.live === false ? ["", "未开播"] : ["unk", "状态未知（检查代理）"];
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `<div class="role">${m.role}</div>
+      <div class="name"></div><div class="h"></div>
+      <div class="st"><span class="dot ${st[0]}"></span><span>${st[1]}</span></div>
+      <div class="tip"></div>`;
+    el.querySelector(".name").textContent = m.jp;
+    el.querySelector(".h").textContent = m.handle;
+    el.querySelector(".tip").textContent = m.note || "";
+    el.onclick = () => openRoom(m);
+    g.appendChild(el);
+  });
+  renderTimes();
+}
+
+function openRoom(m){
+  cur = m;
+  try { history.pushState({ room: m.id }, "", location.pathname + "#" + m.id); } catch(e){}
+  $("#home").style.display = "none";
+  $("#room").style.display = "block";
+  $("#roomMeta").textContent = `${m.role} ${m.jp}　${m.handle}`;
+  // ★ 画面 = YouTube 官方嵌入；聊天 = YouTube 官方聊天室（2026-10-17 静态化）
+  curVid = m.videoId || "";
+  mountPlayer();
+  mountChat(curVid, m.live === true);
+  if(watchTimer){ clearInterval(watchTimer); watchTimer = null; }
+  watchTimer = setInterval(watchLive, 60000);   // ★ 每分钟查一次开播
+}
+
+function closeRoom(fromPop){
+  if(watchTimer){ clearInterval(watchTimer); watchTimer = null; }
+  $("#player").src = "about:blank";
+  $("#chat").src = "about:blank";
+  curVid = "";
+  $("#room").style.display = "none";
+  $("#home").style.display = "block";
+  cur = null;
+  // ★ 没走浏览器返回键时，把刚才 push 的历史条目收回去（避免历史里堆一串空房）
+  if(!fromPop && history.state && history.state.room) history.back();
+}
+
+// ★ 浏览器/手机返回键、ESC 也能回列表（之前只有页面上那个按钮，滑走了就找不着）
+window.addEventListener("popstate", function(){ if(cur) closeRoom(true); });
+document.addEventListener("keydown", function(e){
+  if((e.key === "Escape" || e.key === "Esc") && cur) closeRoom();
+});
+
+// ★ 到直播时间自动投放：查出当前 videoId，变了就重挂 YouTube 嵌入。
+//   进房间时还没开播 → 挂 live_stream（YouTube 会提示未在直播）；之后每 60 秒查一次。
+async function watchLive(){
+  if(!cur) return;
+  try{
+    const j = await loadData(true);
+    const me = (j.members || []).find(x => x.id === cur.id);
+    if(!me) return;
+    const vid = me.videoId || "";
+    if(vid !== curVid){                        // 开播了 / 换场了 / 下播了
+      const was = curVid;
+      curVid = vid; cur.live = me.live === true;
+      $("#roomMeta").textContent = `${cur.role} ${cur.jp}　${cur.handle}` + (vid ? "　● 正在直播" : "");
+      mountPlayer();
+      if(was !== vid) mountChat(vid, !!vid);   // 聊天室跟着换场
+    }
+  }catch(e){}
+}
+
+// ★★★ 弹幕 → YouTube 官方聊天室（2026-10-17 静态化，主人选 B 案）
+//   为什么不再自建：静态托管没有写接口；实测 workers.dev 与 jsDelivr 在墙内**直连不可达**，
+//   所以「零成本后端 + 国内可达」的落脚点不存在。官方聊天则零后端、真·实时、观众能自己发言。
+function mountChat(vid, isLive){
+  const f = $("#chat"), note = $("#chatNote");
+  if(!f) return;
+  if(vid && isLive){
+    const host = location.hostname || "localhost";
+    f.src = `https://www.youtube.com/live_chat?v=${vid}&embed_domain=${host}&dark_theme=1`;
+    f.style.display = "block";
+    if(note) note.textContent = "● 直播进行中 —— 聊天室由 YouTube 提供，发言需登录 YouTube。";
+  }else{
+    f.src = "about:blank";
+    f.style.display = "none";            // 没开播就别挂一个空黑框
+    if(note) note.textContent = "现在没在直播 —— 官方聊天室只在直播进行中开放；开播后本页每分钟自动接上。";
+  }
+}
+
+// ★ B站搬运：点标题在页内弹官方播放器（静态页同样可用，B站播放器允许站外嵌入；原来那条 /bwatch 已随中转拆掉）
+function openBili(bvid, title){
+  $("#ovlTitle").textContent = title || bvid;
+  $("#ovlOut").href = "https://www.bilibili.com/video/" + bvid;
+  $("#ovlFrame").src = `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=1&high_quality=1&danmaku=0`;
+  $("#ovl").classList.add("show");
+}
+function closeBili(){
+  $("#ovl").classList.remove("show");
+  $("#ovlFrame").src = "about:blank";
+}
+
+$("#refresh").onclick = () => { loadStatus(true); loadNotice(); loadSchedule(true); loadBilibili(true); };
+// ★ 首页也自动刷新：开着不动，谁开播了卡片会自己变红（走服务端 60s 缓存，不会狂打 YouTube）
+setInterval(() => {
+  if($("#home").style.display !== "none") loadStatus();
+}, 60000);
+// ★ 配信表变化很慢（一天几次），5 分钟刷一次就够；服务端 X_TTL=15 分钟兜底，不会打爆 x.com。
+// ★ 待機所预告（服务端 UP_TTL=15 分钟）已在 loadSchedule 内部一并取，不再单开定时器。
+setInterval(() => {
+  if($("#home").style.display !== "none") loadSchedule();
+}, 300000);
+// ★ B站搬运：服务端 15 分钟缓存，前端 10 分钟问一次就够（B站搜索有风控，别打太勤）
+setInterval(() => {
+  if($("#home").style.display !== "none") loadBilibili();
+}, 600000);
+$("#back").onclick = closeRoom;
+$("#ovlClose").onclick = closeBili;
+$("#ovl").onclick = (e) => { if(e.target && e.target.id === "ovl") closeBili(); };
+document.addEventListener("keydown", e => { if((e.key === "Escape" || e.key === "Esc") && $("#ovl").classList.contains("show")) closeBili(); });
+loadNotice();
+loadSchedule(false);
+loadStatus(false);
+loadBilibili(false);
+</script>
+</body>
+</html>
