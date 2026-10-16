@@ -14,7 +14,10 @@ on:
     paths:
       - ".github/workflows/update.yml"
   schedule:
-    - cron: "*/10 * * * *"
+    # ★ 避开整点/半点的拥堵（GitHub 官方建议），并注意：**新仓库的 cron 要被调度器识别
+    #   需要 15 分钟到数小时**（社区实测 1h+，本仓库 2026-10-17 首夜实测 2h 未触发）。
+    #   排查口径：API 查 runs?event=schedule 是否出现；只认「真出现 schedule 运行」才算生效。
+    - cron: "7,17,27,37,47,57 * * * *"
 
 permissions:
   contents: write
