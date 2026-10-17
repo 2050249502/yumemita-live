@@ -1,17 +1,26 @@
 name: 定时抓取并更新站点
 
-# 目的：让站点在**站长电脑关机时也能更新** —— 抓取跑在 GitHub 自己的机器上（海外、免代理）。
-# 写入者只有一个（就是本 workflow）：本机的计划任务已停用，见 README。
+# ★★ 2026-10-17 20:5x 双写者口径（主人已定：A 本机为主、云端兜底）★
+#   本机计划任务 yumemita_site_publish 每 5 分钟抓一次并 push（电脑开着时数据永远最新）；
+#   **云端只在「本机看起来不在了」时才写** —— 判据 = data.json 的 ts 距今 ≥ 30 分钟。
+#   为什么必须加这道闸：Actions 与本机同时写同一仓库 ⇒ 会互相 rebase 打架；
+#   而 GitHub 的 schedule 实测在本仓库是 **2~4 小时才醒一次**（配置是 10 分钟），本来也做不到分钟级。
+#   ⇒ 「10 分钟一次」交给本机，云端只负责电脑关机后的兜底。
+#
+# 抓取跑在 GitHub 自己的机器上（海外、免代理）。
 #
 # 已知特性（不是 bug）：
-#   · GitHub 的 cron 会漂移：*/10 实际常落在 10~25 分钟之间，高峰期甚至跳过。
-#   · 每次有变化会 commit 一次；Pages 传统构建有「10 次/小时」软上限，10 分钟一次不会触发。
-#   · 公开仓库的 Actions 分钟数不限量（私有仓库才有 2000 分钟/月 的免费额度）。
+#   · GitHub 的 schedule 是**尽力而为**：官方文档写明高峰会延迟、负载够高时 pending job 直接丢弃。
+#     本仓库实测：8 次 schedule 运行，排队 0 秒、每次只跑 0.7 分钟，实际间隔 2~4 小时，
+#     且触发分钟常常不在 cron 集合里（例：09:42 属 7/17/27/37/47/57 之外）⇒ 整批 tick 被丢。
+#   · 公开仓库 60 天无活动 → schedule 会被自动停用（届时云端这条会静默死掉，需手动 Enable）。
+#   · 每次有变化会 commit 一次；Pages 传统构建有「10 次/小时」软上限。
+#   · 公开仓库的 Actions 分钟数不限量。
 
 on:
   workflow_dispatch:
   # ★ 手机也能刷新：在仓库里**新建一个 issue**（标题或正文含 /refresh）或在任意 issue 下评论 /refresh。
-  #   为什么需要它：实测新仓库的 schedule 数小时都不触发（GitHub 侧调度问题），而这条路径即时生效、不需要任何 token。
+  #   手动路径**不受 30 分钟闸门限制**（想立刻抓就抓）。
   issues:
     types: [opened]
   issue_comment:
@@ -20,9 +29,6 @@ on:
     paths:
       - ".github/workflows/update.yml"
   schedule:
-    # ★ 避开整点/半点的拥堵（GitHub 官方建议），并注意：**新仓库的 cron 要被调度器识别
-    #   需要 15 分钟到数小时**（社区实测 1h+，本仓库 2026-10-17 首夜实测 2h 未触发）。
-    #   排查口径：API 查 runs?event=schedule 是否出现；只认「真出现 schedule 运行」才算生效。
     - cron: "7,17,27,37,47,57 * * * *"
 
 permissions:
@@ -47,12 +53,37 @@ jobs:
       - name: 取代码
         uses: actions/checkout@v4
 
+      # ★★ 新鲜度闸门：本机在写就让路。手动触发（dispatch / issue /refresh）一律放行。
+      - name: 新鲜度闸门（本机为主，云端只在数据超过 30 分钟时才写）
+        id: gate
+        run: |
+          python - <<'PY'
+          import json, os, time
+          ev = os.environ.get("GITHUB_EVENT_NAME", "")
+          out = os.environ.get("GITHUB_OUTPUT", "/dev/null")
+          skip = "false"
+          manual = ev in ("workflow_dispatch", "issues", "issue_comment")
+          try:
+              d = json.load(open("data.json", encoding="utf-8"))
+              age = (time.time() - float(d.get("ts") or 0)) / 60.0
+              print("现有 data.json：%.1f 分钟前生成（event=%s，built=%s）" % (age, ev, d.get("built")))
+              if not manual and age < 30:
+                  print("::notice::本机在写（数据仅 %.0f 分钟，阈值 30）→ 云端让路，不抢写入权" % age)
+                  skip = "true"
+          except Exception as e:
+              print("读不到 data.json（%s）→ 当作需要抓取" % e)
+          with open(out, "a", encoding="utf-8") as f:
+              f.write("skip=%s\n" % skip)
+          PY
+
       - name: 装 Python
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: 抓取并生成 data.json（发布目录 = 仓库根）
+        if: steps.gate.outputs.skip != 'true'
         env:
           YUMEMITA_SITE_DIR: .
         run: |
@@ -60,6 +91,7 @@ jobs:
           python build_data.py
 
       - name: 体检（全失败就不提交，别把坏数据顶上去）
+        if: steps.gate.outputs.skip != 'true'
         run: |
           python - <<'PY'
           import json, sys
@@ -72,14 +104,17 @@ jobs:
               sys.exit(1)
           PY
 
-      - name: 提交并推送（有变化才提交）
+      - name: 提交并推送（有变化才提交；data.json 冲突一律取本次生成版）
+        if: steps.gate.outputs.skip != 'true'
         run: |
           git config user.name "yumemita-bot"
           git config user.email "2050249502@users.noreply.github.com"
           git add -f data.json
           if git diff --cached --quiet; then echo "数据无变化，跳过提交"; exit 0; fi
           git commit -m "数据更新 $(date -u '+%Y-%m-%d %H:%M') UTC"
+          # ★ rebase 冲突时取「本次生成的」那份（data.json 是生成物，不是手写文件）
           for i in 1 2 3 4 5; do
-            if git pull --rebase --autostash -q && git push -q; then echo "推送成功（第 $i 次）"; break; fi
+            if git pull --rebase --autostash -X theirs -q && git push -q; then echo "推送成功（第 $i 次）"; break; fi
+            git rebase --abort 2>/dev/null || true
             echo "第 $i 次推送失败，5s 后重试"; sleep 5
           done

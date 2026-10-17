@@ -1,14 +1,12 @@
 name: 站点数据刷新（备线）
 
-# 备线：与 update.yml 同功能、不同 cron。★ 2026-10-17 实测：新仓库的 schedule 可能几小时不触发，
-# 多注册一条不同名字/不同分钟的，增加被调度器拾取的机会（两条都跑也无害：有变化才提交 + rebase 重试）。
-# 目的：让站点在**站长电脑关机时也能更新** —— 抓取跑在 GitHub 自己的机器上（海外、免代理）。
-# 写入者只有一个（就是本 workflow）：本机的计划任务已停用，见 README。
+# 备线：与 update.yml 同功能、不同 cron。★ 2026-10-17 实测：本仓库的 schedule 可能几小时不触发，
+# 多注册一条不同名字/不同分钟的，增加被调度器拾取的机会。
 #
-# 已知特性（不是 bug）：
-#   · GitHub 的 cron 会漂移：*/10 实际常落在 10~25 分钟之间，高峰期甚至跳过。
-#   · 每次有变化会 commit 一次；Pages 传统构建有「10 次/小时」软上限，10 分钟一次不会触发。
-#   · 公开仓库的 Actions 分钟数不限量（私有仓库才有 2000 分钟/月 的免费额度）。
+# ★★ 2026-10-17 双写者口径（主人已定：A 本机为主、云端兜底）★
+#   本机计划任务每 5 分钟抓一次并 push；**云端只在 data.json 的 ts 距今 ≥ 30 分钟时才写**。
+#   两条云端 workflow 都过同一道闸门 ⇒ 不会出现「两条备线自己打架」。
+#   手动触发（dispatch / issue /refresh）不受闸门限制。
 
 on:
   workflow_dispatch:
@@ -16,9 +14,6 @@ on:
     paths:
       - ".github/workflows/refresh.yml"
   schedule:
-    # ★ 避开整点/半点的拥堵（GitHub 官方建议），并注意：**新仓库的 cron 要被调度器识别
-    #   需要 15 分钟到数小时**（社区实测 1h+，本仓库 2026-10-17 首夜实测 2h 未触发）。
-    #   排查口径：API 查 runs?event=schedule 是否出现；只认「真出现 schedule 运行」才算生效。
     - cron: "13,33,53 * * * *"
 
 permissions:
@@ -36,12 +31,36 @@ jobs:
       - name: 取代码
         uses: actions/checkout@v4
 
+      - name: 新鲜度闸门（本机为主，云端只在数据超过 30 分钟时才写）
+        id: gate
+        run: |
+          python - <<'PY'
+          import json, os, time
+          ev = os.environ.get("GITHUB_EVENT_NAME", "")
+          out = os.environ.get("GITHUB_OUTPUT", "/dev/null")
+          skip = "false"
+          manual = ev in ("workflow_dispatch", "issues", "issue_comment")
+          try:
+              d = json.load(open("data.json", encoding="utf-8"))
+              age = (time.time() - float(d.get("ts") or 0)) / 60.0
+              print("现有 data.json：%.1f 分钟前生成（event=%s）" % (age, ev))
+              if not manual and age < 30:
+                  print("::notice::本机在写（数据仅 %.0f 分钟，阈值 30）→ 备线让路" % age)
+                  skip = "true"
+          except Exception as e:
+              print("读不到 data.json（%s）→ 当作需要抓取" % e)
+          with open(out, "a", encoding="utf-8") as f:
+              f.write("skip=%s\n" % skip)
+          PY
+
       - name: 装 Python
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: 抓取并生成 data.json（发布目录 = 仓库根）
+        if: steps.gate.outputs.skip != 'true'
         env:
           YUMEMITA_SITE_DIR: .
         run: |
@@ -49,6 +68,7 @@ jobs:
           python build_data.py
 
       - name: 体检（全失败就不提交，别把坏数据顶上去）
+        if: steps.gate.outputs.skip != 'true'
         run: |
           python - <<'PY'
           import json, sys
@@ -61,7 +81,8 @@ jobs:
               sys.exit(1)
           PY
 
-      - name: 提交并推送（有变化才提交）
+      - name: 提交并推送（有变化才提交；data.json 冲突一律取本次生成版）
+        if: steps.gate.outputs.skip != 'true'
         run: |
           git config user.name "yumemita-bot"
           git config user.email "2050249502@users.noreply.github.com"
@@ -69,6 +90,7 @@ jobs:
           if git diff --cached --quiet; then echo "数据无变化，跳过提交"; exit 0; fi
           git commit -m "数据更新 $(date -u '+%Y-%m-%d %H:%M') UTC"
           for i in 1 2 3 4 5; do
-            if git pull --rebase --autostash -q && git push -q; then echo "推送成功（第 $i 次）"; break; fi
+            if git pull --rebase --autostash -X theirs -q && git push -q; then echo "推送成功（第 $i 次）"; break; fi
+            git rebase --abort 2>/dev/null || true
             echo "第 $i 次推送失败，5s 后重试"; sleep 5
           done
