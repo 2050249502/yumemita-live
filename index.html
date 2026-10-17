@@ -133,6 +133,25 @@
   .sdiv{margin:12px 0 4px;padding-top:9px;border-top:1px dashed #232a38;font-size:11.5px;color:var(--dim)}
   .srow.old{opacity:.5}
   .srow .stag{font-size:10.5px;color:#ffb3c8;border:1px solid #5a2b39;border-radius:5px;padding:0 4px;margin-left:6px}
+  /* ★ 2026-10-18 主人反馈：竖屏下「最新视频」「B站搬运」4 列挤死（116+52+78px 定宽），标题只剩几个字。
+     ⇒ 窄屏改成整行横向滑动：行内各列不压缩、标题完整显示，行宽自动对齐最宽那行，横向滚动条可见可拖。 */
+  .swipe{display:none;font-size:11px;font-weight:400;color:var(--dim);opacity:.8}
+  @media(max-width:680px){
+    .swipe{display:inline}
+    #times,#bili{display:grid;grid-template-columns:max-content;white-space:normal;
+                 overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+                 padding-bottom:9px;scrollbar-width:thin;scrollbar-color:#3f4a5e transparent}
+    #times::-webkit-scrollbar,#bili::-webkit-scrollbar{height:8px}
+    #times::-webkit-scrollbar-track,#bili::-webkit-scrollbar-track{background:#141922;border-radius:5px}
+    #times::-webkit-scrollbar-thumb,#bili::-webkit-scrollbar-thumb{background:#3f4a5e;border-radius:5px}
+    #times::-webkit-scrollbar-thumb:hover,#bili::-webkit-scrollbar-thumb:hover{background:#55637d}
+    #times .trow,#bili .trow{gap:12px;padding:7px 10px 7px 4px;border-top:0;border-radius:9px}
+    #times .trow:nth-child(odd),#bili .trow:nth-child(odd){background:#181e29}
+    #times .tname,#bili .tname{flex:0 0 auto;min-width:92px;white-space:nowrap}
+    #times .trole,#bili .trole{flex:0 0 auto;white-space:nowrap}
+    #times .twhen,#bili .twhen{flex:0 0 auto;white-space:nowrap}
+    #times .ttext,#bili .ttext{flex:0 0 auto;overflow:visible;text-overflow:clip;white-space:nowrap;padding-right:8px}
+  }
 </style>
 </head>
 <body>
@@ -160,13 +179,13 @@
     </div>
 
     <div class="panel">
-      <div class="ptitle">🎬 最新视频 <span class="psrc">每人最近一次上传（视频或直播档）· RSS 优先，RSS 不可用时改抓页面并按 uploadDate 取最新 · 「※」= 本次未取到、显示上次成功结果</span></div>
+      <div class="ptitle">🎬 最新视频 <span class="swipe">← 左右滑动 →</span> <span class="psrc">每人最近一次上传（视频或直播档）· RSS 优先，RSS 不可用时改抓页面并按 uploadDate 取最新 · 「※」= 本次未取到、显示上次成功结果</span></div>
       <div class="pbody" id="times">加载中…</div>
     </div>
 
     <!-- ★ 2026-10-15：回放/剪辑走 B站（墙内直连，不占本站上行与机场流量） -->
     <div class="panel">
-      <div class="ptitle">📺 B站搬运 <span class="psrc">视频内容均可直接跳转至 B站原视频，可以去三连支持感谢一下相关 UP 主的搬运</span></div>
+      <div class="ptitle">📺 B站搬运 <span class="swipe">← 左右滑动 →</span> <span class="psrc">视频内容均可直接跳转至 B站原视频，可以去三连支持感谢一下相关 UP 主的搬运</span></div>
       <div class="pbody" id="bili">加载中…</div>
     </div>
 
