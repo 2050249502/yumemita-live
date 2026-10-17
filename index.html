@@ -41,23 +41,26 @@
   .stage{position:relative;background:#000;border:1px solid var(--line);border-radius:14px;
          overflow:hidden;aspect-ratio:16/9;max-height:74vh;margin:0 auto}
   .stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-  /* ★ 2026-10-18 主人要求：成员直播**不再内嵌播放器**，改为直接跳官方直播间。
-     YouTube 视频墙内直连不了（实测 youtube.com 8s 超时），内嵌只会白屏/转圈 ⇒ 只留卡片+外链。 */
-  .stage{display:flex;align-items:center;justify-content:center;background:#0b0e13;
-         aspect-ratio:auto;max-height:none;min-height:min(46vh,380px)}
-  .jumpcard{text-align:center;padding:20px;max-width:660px}
-  .jstate{font-size:13px;color:var(--dim);letter-spacing:.03em}
-  .jstate.on{color:#ff3355;font-weight:700}
-  .jtitle{font-size:15px;font-weight:700;margin:11px 0 18px;line-height:1.6;color:#e8ecf3}
-  .jbtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-  .jbtn{display:inline-block;padding:10px 18px;border-radius:10px;border:1px solid var(--line);
+  /* ★ 2026-10-17 主人决定：直播中转拆除 ⇒ 画面一律 YouTube 官方嵌入，不再有 <video>/模式切换 */
+  .notice .lnk{color:var(--pink);text-decoration:underline;cursor:pointer}
+  /* ★ 2026-10-17 静态化：房间 = 画面 + YouTube 官方聊天室 两栏；B站搬运点标题页内弹官方播放器 */
+  .roomwrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start}
+  /* ★ 坑：.stage 原本带 margin:0 auto，在 grid 里 auto 边距会让它变 shrink-to-fit ⇒ 宽度塌成 0（无 in-flow 内容） */
+  .roomwrap .stage{margin:0;width:100%}
+  /* ★ 2026-10-18 画面下方加「官方入口」按钮条：内嵌播放器在墙内常白屏，一键去官方看 */
+  .stagecol{display:flex;flex-direction:column;gap:9px;min-width:0}
+  .jumpbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .jbl{font-size:12px;color:var(--dim);letter-spacing:.02em}
+  .jbtn{display:inline-block;padding:8px 15px;border-radius:9px;border:1px solid var(--line);
         color:#dfe6f2;text-decoration:none;font-size:13px;font-weight:700;background:#151a23}
   .jbtn.primary{background:#ff2b52;border-color:#ff2b52;color:#fff}
   .jbtn:hover{filter:brightness(1.15)}
-  .jnote{font-size:12px;color:var(--dim);margin-top:18px;line-height:1.75}
-  .notice .lnk{color:var(--pink);text-decoration:underline;cursor:pointer}
-  /* ★ 2026-10-18 单栏：聊天室栏随内嵌播放器一起去掉（都要 YouTube 直连，墙内都是白框） */
-  .roomwrap{display:block}
+  @media(max-width:900px){.roomwrap{grid-template-columns:minmax(0,1fr)}}
+  .chatcol{display:flex;flex-direction:column;gap:7px}
+  .chead{font-size:12px;color:var(--dim);line-height:1.6}
+  #chat{width:100%;height:430px;border:1px solid var(--line);border-radius:12px;background:#0f1218}
+  @media(max-width:900px){#chat{height:320px}}
+  .cnote{font-size:12px;color:var(--dim)}
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.84);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
   .overlay.show{display:flex}
   .oBox{width:min(1100px,96vw);background:#0f1218;border:1px solid var(--line);border-radius:14px;padding:11px}
@@ -135,7 +138,7 @@
 <body>
 <header>
   <h1>夢限大みゅーたいぷ</h1>
-  <span class="sub">成员直播间 · 直播中点成员卡片直接去官方直播间</span>
+  <span class="sub">成员直播间 · 画面卡住就用下方「官方入口」去官方看</span>
   <span class="t" id="clock"></span>
 </header>
 
@@ -180,21 +183,27 @@
       <span class="meta" id="roomMeta"></span>
     </div>
     <div class="roomwrap">
+     <div class="stagecol">
       <div class="stage">
         <!-- ★ 注意：这个 id 不能叫 notice —— 首页「📢 公告」面板已经用了 id="notice"，
              同页两个同名 id 时 getElementById 只拿到第一个（首页那个），单间提示条会变成 0 高度的隐形元素。
              2026-10-16 修。 -->
         <div class="notice" id="stageNotice"></div>
-        <!-- ★ 2026-10-18 主人要求：不内嵌播放器，直接给官方直播间入口 -->
-        <div class="jumpcard" id="jumpCard">
-          <div class="jstate" id="jState"></div>
-          <div class="jtitle" id="jTitle"></div>
-          <div class="jbtns">
-            <a id="jLive" class="jbtn primary" target="_blank" rel="noopener">↗ 打开官方直播间</a>
-            <a id="jChan" class="jbtn" target="_blank" rel="noopener">↗ 频道页</a>
-          </div>
-          <div class="jnote" id="jNote"></div>
-        </div>
+        <iframe id="player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowfullscreen referrerpolicy="origin"></iframe>
+      </div>
+      <!-- ★ 2026-10-18 主人要求：播放器底下多两个官方入口按钮（墙内嵌入常白屏，点这里去官方看） -->
+      <div class="jumpbar">
+        <span class="jbl">官方入口</span>
+        <a id="jLive" class="jbtn primary" target="_blank" rel="noopener">↗ 打开官方直播间</a>
+        <a id="jChan" class="jbtn" target="_blank" rel="noopener">↗ 频道页</a>
+      </div>
+     </div>
+      <div class="chatcol">
+        <div class="chead">💬 <b>YouTube 官方聊天室</b><br>
+          2026-10-17 起本站自建弹幕下线，直接用官方聊天：只在<b>直播进行中</b>有内容，要发言得登录 YouTube。</div>
+        <iframe id="chat" allow="autoplay; encrypted-media" referrerpolicy="origin"></iframe>
+        <div class="cnote" id="chatNote"></div>
       </div>
     </div>
   </div>
@@ -265,23 +274,29 @@ function setNotice(html, show){
 }
 
 // 挂画面：有正在播的 videoId 就嵌那一场；否则挂频道直播位（YouTube 自己会提示未在直播）
-// ★★★ 2026-10-18 主人要求：**不再内嵌播放器**，成员直播改为「直接跳官方直播间」。
-//    理由（实测）：youtube.com 直连 8 秒超时 ⇒ 内嵌 iframe 在墙内只能是白屏/转圈。
-//    所以房间页只放一张卡片 + 真外链，开播时按钮指向 watch?v=<vid>，未开播指向频道页。
-function mountStage(){
+function mountPlayer(){
   if(!cur) return;
-  const st = $("#jState"); if(!st) return;
-  const ti = $("#jTitle"), lv = $("#jLive"), ch = $("#jChan"), nt = $("#jNote");
+  updateJumps();
+  if(cur.live === true && curVid){
+    $("#player").src = `https://www.youtube.com/embed/${curVid}?autoplay=1`;
+    setNotice("", false);
+    return;
+  }
+  $("#player").src = cur.ucid
+    ? `https://www.youtube.com/embed/live_stream?channel=${cur.ucid}&autoplay=1` : "about:blank";
+  if(!cur.ucid){
+    setNotice("拿不到频道 ID（需要代理才能解析），暂时无法嵌入画面。", true);
+  }else{
+    setNotice((cur.live === false ? "当前未开播。" : "拿不到直播状态（可能是代理没开）。") +
+      ` 可去 YouTube 频道页看看：<a href="${cur.url}" target="_blank" rel="noopener">${cur.url}</a>`, true);
+  }
+}
+
+// ★ 2026-10-18 播放器下方「官方入口」按钮：开播 → 该场 watch 链接；未开播 → 频道页（并隐藏「频道页」）
+function updateJumps(){
+  if(!cur) return;
+  const lv = $("#jLive"), ch = $("#jChan"); if(!lv) return;
   const liveNow = (cur.live === true && !!curVid);
-  const unk = (cur.live === null);
-  st.className = "jstate" + (liveNow ? " on" : "");
-  st.textContent = liveNow ? ("● 正在直播「" + cur.jp + "」")
-                 : unk ? ("？ " + cur.jp + " 状态未知（这次没解析到）")
-                 : ("○ " + cur.jp + " 现在没在直播");
-  const r = cur.recent || null;
-  ti.textContent = liveNow ? ((r && r.title) || "正在直播中")
-                 : (r && r.title) ? ("最近一次：" + r.title) : "（还没有最近的视频记录）";
-  // 主按钮：开播 → 该场 watch 链接；没开播 → 频道页（先到那儿等/看是否开播）
   if(liveNow){
     lv.textContent = "↗ 打开官方直播间";
     lv.href = "https://www.youtube.com/watch?v=" + curVid;
@@ -291,10 +306,6 @@ function mountStage(){
     lv.href = cur.url || ("https://www.youtube.com/" + (cur.handle || ""));
     ch.style.display = "none";
   }
-  nt.textContent = liveNow
-    ? "本站不再内嵌播放器（墙内直连不了 YouTube，内嵌只会白屏）。点上面按钮进官方直播间；开播/换场本页每分钟自动更新链接。"
-    : "开播后本页每分钟自动更新，按钮会自动变成「打开官方直播间」；也可先开频道页等。";
-  setNotice("", false);
 }
 
 function tick(){
@@ -521,16 +532,7 @@ function render(){
     el.querySelector(".name").textContent = m.jp;
     el.querySelector(".h").textContent = m.handle;
     el.querySelector(".tip").textContent = m.note || "";
-    // ★ 2026-10-18 主人要求：正在直播的成员，点卡片**直接跳官方直播间**（新标签，不再进房间）
-    //   没开播的才进房间 —— 房间里给的是频道页入口。
-    if(m.live === true && m.videoId) el.querySelector(".tip").textContent = "↗ 点一下直接进官方直播间";
-    el.onclick = () => {
-      if(m.live === true && m.videoId){
-        window.open("https://www.youtube.com/watch?v=" + m.videoId, "_blank", "noopener");
-        return;
-      }
-      openRoom(m);
-    };
+    el.onclick = () => openRoom(m);
     g.appendChild(el);
   });
   renderTimes();
@@ -542,15 +544,18 @@ function openRoom(m){
   $("#home").style.display = "none";
   $("#room").style.display = "block";
   $("#roomMeta").textContent = `${m.role} ${m.jp}　${m.handle}`;
-  // ★ 画面 = 跳转卡片（2026-10-18：不再内嵌播放器）；开播时按钮指向官方直播间
+  // ★ 画面 = YouTube 官方嵌入；聊天 = YouTube 官方聊天室（2026-10-17 静态化）
   curVid = m.videoId || "";
-  mountStage();
+  mountPlayer();
+  mountChat(curVid, m.live === true);
   if(watchTimer){ clearInterval(watchTimer); watchTimer = null; }
   watchTimer = setInterval(watchLive, 60000);   // ★ 每分钟查一次开播
 }
 
 function closeRoom(fromPop){
   if(watchTimer){ clearInterval(watchTimer); watchTimer = null; }
+  $("#player").src = "about:blank";
+  $("#chat").src = "about:blank";
   curVid = "";
   $("#room").style.display = "none";
   $("#home").style.display = "block";
@@ -575,17 +580,32 @@ async function watchLive(){
     if(!me) return;
     const vid = me.videoId || "";
     if(vid !== curVid){                        // 开播了 / 换场了 / 下播了
+      const was = curVid;
       curVid = vid; cur.live = me.live === true;
-      if(me.recent) cur.recent = me.recent;
       $("#roomMeta").textContent = `${cur.role} ${cur.jp}　${cur.handle}` + (vid ? "　● 正在直播" : "");
-      mountStage();
+      mountPlayer();
+      if(was !== vid) mountChat(vid, !!vid);   // 聊天室跟着换场
     }
   }catch(e){}
 }
 
-// ★★★ 2026-10-18 主人要求把直播改成「直接跳转官方直播间」⇒
-//   mountChat()（YouTube live_chat iframe）一并删掉：它和播放器一样需要 YouTube 直连，
-//   墙内只能是个白框；观众跳去官方直播间后，聊天室本来就在那一页里。
+// ★★★ 弹幕 → YouTube 官方聊天室（2026-10-17 静态化，主人选 B 案）
+//   为什么不再自建：静态托管没有写接口；实测 workers.dev 与 jsDelivr 在墙内**直连不可达**，
+//   所以「零成本后端 + 国内可达」的落脚点不存在。官方聊天则零后端、真·实时、观众能自己发言。
+function mountChat(vid, isLive){
+  const f = $("#chat"), note = $("#chatNote");
+  if(!f) return;
+  if(vid && isLive){
+    const host = location.hostname || "localhost";
+    f.src = `https://www.youtube.com/live_chat?v=${vid}&embed_domain=${host}&dark_theme=1`;
+    f.style.display = "block";
+    if(note) note.textContent = "● 直播进行中 —— 聊天室由 YouTube 提供，发言需登录 YouTube。";
+  }else{
+    f.src = "about:blank";
+    f.style.display = "none";            // 没开播就别挂一个空黑框
+    if(note) note.textContent = "现在没在直播 —— 官方聊天室只在直播进行中开放；开播后本页每分钟自动接上。";
+  }
+}
 
 // ★ B站搬运：点标题在页内弹官方播放器（静态页同样可用，B站播放器允许站外嵌入；原来那条 /bwatch 已随中转拆掉）
 function openBili(bvid, title){
