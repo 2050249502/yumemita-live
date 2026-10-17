@@ -118,3 +118,5 @@ jobs:
             git rebase --abort 2>/dev/null || true
             echo "第 $i 次推送失败，5s 后重试"; sleep 5
           done
+
+# 2026-10-17 21:1x 验证记录：本机在写时，云端 schedule/push 触发应被「新鲜度闸门」跳过（见 #9 运行）。
