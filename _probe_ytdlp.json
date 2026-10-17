@@ -1,0 +1,21 @@
+{
+ "at": "2026-10-17T16:19:55Z",
+ "runs": [
+  {
+   "label": "video_metadata",
+   "url": "https://www.youtube.com/watch?v=bJcQqbOOXfo",
+   "rc": 1,
+   "stderr": "ERROR: [youtube] bJcQqbOOXfo: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to manually pass cookies. Also see  https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies  for tips on effectively exporting YouTube cookies"
+  },
+  {
+   "label": "channel_live_endpoint",
+   "url": "https://www.youtube.com/@arale_yumemita/live",
+   "rc": 1,
+   "stderr": "ERROR: [youtube] GXE-zeOD3nc: This live event will begin in 20 hours.",
+   "is_live": null
+  }
+ ],
+ "target_kind": "vod:arale",
+ "target_url": "https://www.youtube.com/watch?v=bJcQqbOOXfo",
+ "ytdlp_version": "2026.08.19"
+}
