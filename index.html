@@ -406,9 +406,9 @@ async function loadSchedule(force){
       const hu = hoursUntil(x.start_ts, x.hours_until);      // ★ 静态页里必须现算，别用快照里的 hours_until
       row.className = "srow" + (hu > 0 && hu <= 3 ? " soon" : "");
       const t = document.createElement("span"); t.className = "stime";
-      let cd = "";
-      if(hu > 0) cd = hu < 1 ? "（" + Math.round(hu*60) + " 分后）" : "（" + Math.round(hu) + " 小时后）";
-      t.textContent = bjHM(x.start_ts) + cd;
+      // ★ 2026-10-18 主人要求：**不显示「N 小时/分后」这类倒计时**，只给北京时间的开播时刻。
+      //   hu 仍用来打「soon」高亮（3 小时内=醒目），但不落成文字。
+      t.textContent = bjHM(x.start_ts);
       const n = document.createElement("span"); n.className = "sname";
       n.textContent = x.member + "：";
       const a = document.createElement("a"); a.href = x.url; a.target = "_blank"; a.rel = "noopener";
