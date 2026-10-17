@@ -1,0 +1,119 @@
+name: yt-dlp 可行性探针（只读元数据，不下载）
+
+# 用途：回答「能不能用 GitHub 的服务器取 YouTube 视频流」这个技术问题。
+# 口径：只做**元数据**（格式清单 / 签名 URL 是否存在）+ 一次 1KB range 可达性探测，
+#      **不下载、不落盘、不转存**任何音视频内容。结果写进 _probe_ytdlp.json 供读取（不需要 token 看日志）。
+#
+# 2026-10-17 由主人提问触发；结论写进 skill youtube-live-embedding。
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/ytdlp-probe.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 装 yt-dlp
+        run: pip install -q -U yt-dlp
+
+      - name: 探针（元数据 + 1KB 可达性）
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, urllib.request, datetime
+
+          out = {"at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "runs": []}
+          try:
+              d = json.load(open("data.json", encoding="utf-8"))
+              ms = d.get("members") or []
+          except Exception as e:
+              ms = []
+              out["data_error"] = str(e)
+
+          # 选目标：优先「正在直播」的成员，否则取第一个成员最近一条视频
+          target = None
+          for m in ms:
+              if m.get("live") and m.get("videoId"):
+                  target = ("live:" + m["id"], "https://www.youtube.com/watch?v=" + m["videoId"])
+                  break
+          if not target:
+              for m in ms:
+                  r = m.get("recent") or {}
+                  if r.get("url"):
+                      target = ("vod:" + m["id"], r["url"]); break
+          if not target:
+              target = ("fallback", "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
+          out["target_kind"], out["target_url"] = target
+          out["ytdlp_version"] = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True).stdout.strip()
+
+          def ytdlp_json(url):
+              p = subprocess.run(["yt-dlp", "-J", "--no-warnings", "--no-playlist", url],
+                                 capture_output=True, text=True, timeout=180)
+              err = (p.stderr or "").strip()
+              return p.returncode, err, p.stdout
+
+          rc, err, so = ytdlp_json(out["target_url"])
+          rec = {"label": "video_metadata", "url": out["target_url"], "rc": rc,
+                 "stderr": err[-600:]}
+          if rc == 0 and so.strip():
+              try:
+                  info = json.loads(so)
+                  fmts = info.get("formats") or []
+                  rec["title"] = (info.get("title") or "")[:80]
+                  rec["is_live"] = info.get("is_live")
+                  rec["live_status"] = info.get("live_status")
+                  rec["format_count"] = len(fmts)
+                  rec["protocols"] = sorted({f.get("protocol", "") for f in fmts})[:8]
+                  # 取一个视频格式的 URL，仅做 1KB range 可达性测试
+                  cand = [f for f in fmts if f.get("vcodec") not in (None, "none") and f.get("url")]
+                  if cand:
+                      u = cand[-1]["url"]
+                      rec["cdn_host"] = u.split("/")[2] if "://" in u else "?"
+                      try:
+                          req = urllib.request.Request(u, headers={"Range": "bytes=0-1023",
+                                                                   "User-Agent": "Mozilla/5.0"})
+                          with urllib.request.urlopen(req, timeout=60) as r:
+                              got = r.read(1024)
+                              rec["range_probe"] = {"http": r.status, "bytes": len(got)}
+                      except Exception as e:
+                          rec["range_probe"] = {"error": str(e)[:200]}
+              except Exception as e:
+                  rec["parse_error"] = str(e)[:200]
+          out["runs"].append(rec)
+
+          # 额外：直接试频道 /live 端点（判断「正在直播」是否能被 yt-dlp 直接取到）
+          if ms and ms[0].get("handle"):
+              u = "https://www.youtube.com/%s/live" % ms[0]["handle"]
+              rc2, err2, so2 = ytdlp_json(u)
+              out["runs"].append({"label": "channel_live_endpoint", "url": u, "rc": rc2,
+                                  "stderr": err2[-600:],
+                                  "is_live": (json.loads(so2).get("is_live") if rc2 == 0 and so2.strip() else None)})
+
+          json.dump(out, open("_probe_ytdlp.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+          print(json.dumps(out, ensure_ascii=False, indent=1)[:3000])
+          PY
+
+      - name: 结果写回仓库（供无 token 读取）
+        run: |
+          git config user.name "yumemita-bot"
+          git config user.email "2050249502@users.noreply.github.com"
+          git add -f _probe_ytdlp.json
+          if git diff --cached --quiet; then echo "无变化"; exit 0; fi
+          git commit -m "探针：yt-dlp 可行性 $(date -u '+%Y-%m-%d %H:%M') UTC"
+          for i in 1 2 3; do
+            if git pull --rebase --autostash -X theirs -q && git push -q; then echo "写回成功"; break; fi
+            git rebase --abort 2>/dev/null || true; sleep 5
+          done
