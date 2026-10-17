@@ -58,14 +58,6 @@
   .notice .lnk{color:var(--pink);text-decoration:underline;cursor:pointer}
   /* ★ 2026-10-18 单栏：聊天室栏随内嵌播放器一起去掉（都要 YouTube 直连，墙内都是白框） */
   .roomwrap{display:block}
-  /* ★ 坑：.stage 原本带 margin:0 auto，在 grid 里 auto 边距会让它变 shrink-to-fit ⇒ 宽度塌成 0（无 in-flow 内容） */
-  .roomwrap > .stage{margin:0;width:100%}
-  @media(max-width:900px){.roomwrap{grid-template-columns:minmax(0,1fr)}}
-  .chatcol{display:flex;flex-direction:column;gap:7px}
-  .chead{font-size:12px;color:var(--dim);line-height:1.6}
-  #chat{width:100%;height:430px;border:1px solid var(--line);border-radius:12px;background:#0f1218}
-  @media(max-width:900px){#chat{height:320px}}
-  .cnote{font-size:12px;color:var(--dim)}
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.84);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
   .overlay.show{display:flex}
   .oBox{width:min(1100px,96vw);background:#0f1218;border:1px solid var(--line);border-radius:14px;padding:11px}
