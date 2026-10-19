@@ -1,28 +1,28 @@
 {
-  "when_utc": "2026-10-16 20:00:44",
+  "when_utc": "2026-10-19 12:20:51",
   "probe_version": 41,
-  "runner": "GitHub Actions 1000000067",
+  "runner": "GitHub Actions 1000001608",
   "python": "3.11.17",
   "egress": {
     "https://ipinfo.io/json": {
-      "ip": "132.196.35.131",
-      "city": "Des Moines",
-      "region": "Iowa",
+      "ip": "172.182.225.160",
+      "city": "Phoenix",
+      "region": "Arizona",
       "country": "US",
-      "loc": "41.6005,-93.6091",
+      "loc": "33.4484,-112.0740",
       "org": "AS8075 Microsoft Corporation",
-      "postal": "50309",
-      "timezone": "America/Chicago",
+      "postal": "85003",
+      "timezone": "America/Phoenix",
       "readme": "https://ipinfo.io/missingauth"
     },
     "https://api.ipify.org?format=json": {
-      "ip": "132.196.35.131"
+      "ip": "172.182.225.160"
     }
   },
   "blocks": {
     "status（YouTube 在播 + 每人最新视频）": {
       "ok": true,
-      "secs": 1.4,
+      "secs": 1.3,
       "returned_none": false,
       "n": 6,
       "first_keys": [
@@ -40,13 +40,13 @@
       "sample": "仲町あられ",
       "with_live": 0,
       "with_recent": 6,
-      "recent_sample": "仲町あられ → 【🟡朝活】今日はぱっちり起きれました🌟 #Shorts #Vtuber 【 仲町あられ / 夢限大みゅーたいぷ 】"
+      "recent_sample": "仲町あられ → 【🟡持ち物チェック】最近の仲町さんのカバンの中身は…？【 仲町あられ / 夢限大みゅーたいぷ 】"
     },
     "x_schedule（官方 X 配信表）": {
       "ok": true,
-      "secs": 12.9,
+      "secs": 15.9,
       "returned_none": false,
-      "n": 1,
+      "n": 2,
       "first_keys": [
         "date",
         "date_cn",
@@ -55,7 +55,7 @@
         "note_cn",
         "text"
       ],
-      "sample": "／ 🛸#ゆめみた 10/16(金)の配信スケジュール🌟 ＼ 【メン限】22:00～ 仲町あられ youtube.com/@arale_yumemita 【メン限】22:30～ 千石"
+      "sample": "／ 🛸#ゆめみた 10/19(月)の配信スケジュール🌟 ＼ 🎤21:00～ 峰月律 youtube.com/@ritsu_yumemita ✨22:00～ 仲町あられ youtub"
     },
     "upcoming（YouTube 待機所）": {
       "ok": true,
@@ -78,9 +78,9 @@
     },
     "bilibili（B站 搬运，含白名单过滤）": {
       "ok": true,
-      "secs": 10.2,
+      "secs": 8.6,
       "returned_none": false,
-      "n": 57,
+      "n": 53,
       "first_keys": [
         "bvid",
         "title",
@@ -92,9 +92,9 @@
         "play",
         "url"
       ],
-      "sample": "【中字-峰月律-下克上回】武士道的本社都在打击范围内",
-      "bvid_sample": "BV1pEJ863E4N",
-      "author_sample": "滴椎Yuno酱"
+      "sample": "【梦限大/全熟】我赶时间 你们一起上吧 阿拉蕾速通8号出口【仲町阿拉蕾】",
+      "bvid_sample": "BV1FqnJ6GE3K",
+      "author_sample": "小さな魂"
     }
   },
   "x_raw": [
@@ -120,7 +120,7 @@
       "ua": "curl",
       "status": 403,
       "bytes": 5403,
-      "secs": 0.1,
+      "secs": 5.1,
       "marks": {
         "Enable JavaScript": true
       }
@@ -137,8 +137,8 @@
       "channel": "fxtwitter（JSON API）",
       "url": "https://api.fxtwitter.com/BDP_yumemita",
       "status": 200,
-      "bytes": 1311,
-      "secs": 0.3,
+      "bytes": 1137,
+      "secs": 0.2,
       "has_schedule_word": false,
       "has_full_text": false,
       "has_tweet_json": true
@@ -147,7 +147,7 @@
       "channel": "vxtwitter（JSON API）",
       "url": "https://api.vxtwitter.com/BDP_yumemita",
       "status": 403,
-      "bytes": 5654,
+      "bytes": 5675,
       "secs": 0.2,
       "has_schedule_word": false,
       "has_full_text": false,
@@ -196,32 +196,32 @@
       "channel": "r.jina.ai 读 x.com",
       "attempt1": {
         "status": 200,
-        "bytes": 8421,
+        "bytes": 7033,
         "secs": 0.3,
         "full_text": 0,
-        "配信スケジュール": 1
+        "配信スケジュール": 2
       },
       "attempt2": {
         "status": 200,
-        "bytes": 8421,
+        "bytes": 7033,
         "secs": 0.2,
         "full_text": 0,
-        "配信スケジュール": 1
+        "配信スケジュール": 2
       }
     },
     {
       "channel": "r.jina.ai 读 syndication",
       "attempt1": {
-        "status": 503,
-        "bytes": 95,
-        "secs": 23.4,
+        "status": 200,
+        "bytes": 22515,
+        "secs": 22.8,
         "full_text": 0,
-        "配信スケジュール": 0
+        "配信スケジュール": 3
       },
       "attempt2": {
         "status": 200,
-        "bytes": 22517,
-        "secs": 23.0,
+        "bytes": 22515,
+        "secs": 23.9,
         "full_text": 0,
         "配信スケジュール": 3
       }
@@ -246,13 +246,18 @@
   ],
   "x_forced": {
     "ok": true,
-    "secs": 0.4,
-    "n": 1,
+    "secs": 0.3,
+    "n": 2,
     "entries": [
       {
-        "date": "10/16",
+        "date": "10/19",
         "slots": 3,
-        "text_head": "／ 🛸#ゆめみた 10/16(金)の配信スケジュール🌟 ＼ 【メン限】22:00～ 仲町あられ yo"
+        "text_head": "／ 🛸#ゆめみた 10/19(月)の配信スケジュール🌟 ＼ 🎤21:00～ 峰月律 youtube."
+      },
+      {
+        "date": "10/18",
+        "slots": 3,
+        "text_head": "／ 🛸#ゆめみた 10/18(日)の配信スケジュール🌟 ＼ ✨22:00～ 仲町あられ youtub"
       }
     ]
   },
