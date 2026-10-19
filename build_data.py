@@ -46,6 +46,36 @@ def log(msg):
     print("[%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg), flush=True)
 
 
+# ── 代理就绪预检（2026-10-19 事故：电脑唤醒后 mihomo 还没起，20:12 那轮 6 人判活全 None，
+#    却照样写盘发布，网站整屏「代理未开或网络不可达」5 分钟）
+#    ★ 判据是拿到 204，不是「7890 在听」（老坑：有监听 ≠ 能转发）
+PROBE_URL = "https://www.gstatic.com/generate_204"
+IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def _proxy_ready(wait_s=24):
+    import urllib.request
+    try:
+        import server as S
+        proxy = S._proxy()
+    except Exception:
+        proxy = None
+    if IN_CI:                                  # 云端 runner 直连海外，没有本机代理这一环
+        return True
+    h = {"http": proxy, "https": proxy} if proxy else {}
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler(h))
+    t0 = time.time()
+    while time.time() - t0 < wait_s:
+        try:
+            with opener.open(PROBE_URL, timeout=6) as r:
+                if r.status == 204:
+                    return True
+        except Exception:
+            pass
+        time.sleep(3)
+    return False
+
+
 def load_prev():
     try:
         with open(OUT, encoding="utf-8") as f:
@@ -61,6 +91,10 @@ def main():
     prev = load_prev()
     data = {"ts": int(time.time()), "built": time.strftime("%Y-%m-%d %H:%M:%S"),
             "errors": {}, "source": "build_data.py"}
+
+    if not _proxy_ready():
+        log("  !!   代理预检未通过（%s）⇒ 本轮不抓取，保留上一份数据" % (S._proxy() or "直连"))
+        return 1
 
     def sect(name, fn, key=None):
         try:
@@ -113,6 +147,14 @@ def main():
         data["notice"] = prev.get("notice", "")
         data["errors"]["notice"] = str(e)[:200]
         log("  !!   notice 失败：%s" % e)
+
+    # ★ 降级不发布：6 人判活**全部 None** = 代理/网络失效，不是「没人在播」（那是 False）
+    #   这种一轮宁可保留上一份好数据，也不能把「代理未开或网络不可达」推上线
+    mem = data.get("members") or []
+    if (not DRY) and mem and all(m.get("live") is None for m in mem):
+        data["errors"]["degraded"] = "all 6 live=None"
+        log("  !!   本轮 6 人判活全部 None（代理失效？）⇒ 不写盘、保留上一份好数据")
+        return 1
 
     if not DRY:
         os.makedirs(SITE, exist_ok=True)
